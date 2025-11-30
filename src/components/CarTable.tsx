@@ -9,16 +9,19 @@ interface CarTableProps {
   onSort: (field: keyof CarCalculations) => void
   onEdit: (car: CarCalculations) => void
   onDelete: (id: string) => void
+  marginalTaxRate: number // Marginalskatt från personliga inställningar
 }
 
 // Förklaringar för varje kolumn
 const columnDescriptions: Record<string, string> = {
   model: 'Bilens märke och modell från Skatteverkets databas.',
   purchasePrice: 'Bilens nybilspris i kr. Används som grund för beräkning av förmånsvärde och leasingkostnad.',
-  benefitValue: 'Beräknas enligt Skatteverkets regler 2025:\n• Grundbelopp: 0,29 × 0,625 × prisbasbelopp\n• + 9% av nybilspriset\n• + 1,96% (statslåneränta) × nybilspriset\n• + Fordonsskatt/löpande kostnader\n• - Miljöbilsreduktion (elbilar: 10 000 kr/år)\n• - 25% om ≥3000 tjänstemil/år',
-  totalCostFromRAM: 'Total kostnad från RAM per år / månad:\n• Leasingkostnad (annuitetsmetod med restvärde)\n• + Arbetsgivaravgifter på förmånsvärde (31,42%)\n• + Ev. driftskostnader som ej ingår i leasing\n\nVisas som: årskostnad / månadskostnad',
-  salaryEquivalent: 'Nettolön du kunde fått istället för bilen (löneväxling):\n\n• Arbetsgivarens kostnad = Leasing + arbetsgivaravgifter på förmånsvärde\n• Bruttolön = Kostnad / 1.3142\n• Nettolön = Bruttolön × (1 - marginalskatt)\n\nVisas som: årligt belopp / månatligt belopp',
-  costPerMile: 'Kostnad per mil körning:\n• Nettolön istället / Årlig körsträcka i mil\n• Visar hur mycket nettolön du "förlorar" per mil du kör\n• Med 15 000 km/år = 1 500 mil'
+  annualLeasingCost: 'Månatlig leasingkostnad beräknad med annuitetsmetoden.\n• Baseras på inköpspris, ränta och restvärde\n• Inkluderar moms (halva momsen kan lyftas vid ≥100 tjänstemil)',
+  benefitValue: 'Förmånsvärde per år enligt Skatteverkets regler 2025:\n• Grundbelopp: 0,29 × 0,625 × prisbasbelopp\n• + 9% av nybilspriset\n• + 1,96% (statslåneränta) × nybilspriset\n• + Fordonsskatt\n• - Miljöbilsreduktion\n• - 25% om ≥3000 tjänstemil/år',
+  benefitTaxCost: 'Vad du betalar i skatt på förmånsvärdet per månad.\n\nBeräkning:\n• Förmånsvärde (år) ÷ 12 × din marginalskatt\n\nDetta är den faktiska kostnaden som dras från din nettolön varje månad för att ha förmånsbilen.',
+  totalCostFromRAM: 'Total kostnad från RAM per år / månad:\n• Leasingkostnad\n• + Arbetsgivaravgifter på förmånsvärde (31,42%)\n• + Ev. driftskostnader som ej ingår i leasing',
+  salaryEquivalent: 'Motsvarande nettolön om pengarna betalats ut som lön istället:\n\n• Arbetsgivarens kostnad = Leasing + arbetsgivaravgifter\n• Bruttolön = Kostnad ÷ 1,3142\n• Nettolön = Bruttolön × (1 - marginalskatt)',
+  costPerMile: 'Kostnad per mil körning:\n• Motsv. Nettolön ÷ Årlig körsträcka i mil\n• Visar vad varje mil "kostar" dig i förlorad nettolön'
 }
 
 export default function CarTable({
@@ -27,7 +30,8 @@ export default function CarTable({
   sortDirection,
   onSort,
   onEdit,
-  onDelete
+  onDelete,
+  marginalTaxRate
 }: CarTableProps) {
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null)
 
@@ -47,9 +51,14 @@ export default function CarTable({
     }).format(value)
   }
 
-  const SortButton = ({ field, label }: { field: keyof CarCalculations; label: string }) => {
+  // Beräkna månatlig skattekostnad på förmånsvärde
+  const calculateBenefitTaxCost = (benefitValue: number) => {
+    return Math.round((benefitValue / 12) * marginalTaxRate)
+  }
+
+  const SortButton = ({ field, label, customDescription }: { field: keyof CarCalculations; label: string; customDescription?: string }) => {
     const isActive = sortField === field
-    const description = columnDescriptions[field]
+    const description = customDescription || columnDescriptions[field]
     
     return (
       <div className="relative inline-flex items-center gap-1">
@@ -97,6 +106,41 @@ export default function CarTable({
     )
   }
 
+  // Label som visar tooltip för förmånskostnad
+  const BenefitTaxLabel = () => {
+    const description = columnDescriptions.benefitTaxCost
+    const label = `Förmånskostnad vid ${Math.round(marginalTaxRate * 100)}% skatt (mån)`
+    
+    return (
+      <div className="relative inline-flex items-center gap-1">
+        <span className="text-sm">{label}</span>
+        <div 
+          className="relative"
+          onMouseEnter={() => setActiveTooltip('benefitTaxCost')}
+          onMouseLeave={() => setActiveTooltip(null)}
+        >
+          <HelpCircle 
+            size={14} 
+            className="text-gray-400 hover:text-b3-turquoise cursor-help transition-colors" 
+          />
+          {activeTooltip === 'benefitTaxCost' && (
+            <div 
+              className="fixed z-[9999] w-80 p-4 bg-gray-900 text-white text-sm rounded-xl shadow-2xl whitespace-pre-line"
+              style={{
+                top: '120px',
+                left: '50%',
+                transform: 'translateX(-50%)'
+              }}
+            >
+              <div className="font-bold mb-2 text-b3-turquoise text-base">{label}</div>
+              {description}
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="overflow-x-auto overflow-y-visible">
       <table className="w-full">
@@ -109,13 +153,19 @@ export default function CarTable({
               <SortButton field="purchasePrice" label="Inköpspris" />
             </th>
             <th className="text-right py-3 px-4 font-semibold text-gray-700">
+              <SortButton field="annualLeasingCost" label="Leasing (mån)" />
+            </th>
+            <th className="text-right py-3 px-4 font-semibold text-gray-700">
               <SortButton field="benefitValue" label="Förmånsvärde (år)" />
+            </th>
+            <th className="text-right py-3 px-4 font-semibold text-gray-700">
+              <BenefitTaxLabel />
             </th>
             <th className="text-right py-3 px-4 font-semibold text-gray-700">
               <SortButton field="totalCostFromRAM" label="RAM-kostnad (år/mån)" />
             </th>
             <th className="text-right py-3 px-4 font-semibold text-gray-700">
-              <SortButton field="salaryEquivalent" label="Nettolön istället (år/mån)" />
+              <SortButton field="salaryEquivalent" label="Motsv. Nettolön (år/mån)" />
             </th>
             <th className="text-right py-3 px-4 font-semibold text-gray-700">
               <SortButton field="costPerMile" label="Kostnad/mil" />
@@ -148,7 +198,16 @@ export default function CarTable({
                 {formatCurrency(car.purchasePrice)}
               </td>
               <td className="py-3 px-4 text-right text-gray-700">
+                {car.annualLeasingCost 
+                  ? formatCurrency(Math.round(car.annualLeasingCost / 12))
+                  : <span className="text-gray-400">-</span>
+                }
+              </td>
+              <td className="py-3 px-4 text-right text-gray-700">
                 {formatCurrency(car.benefitValue)}
+              </td>
+              <td className="py-3 px-4 text-right text-gray-700 font-medium text-b3-pink">
+                {formatCurrency(calculateBenefitTaxCost(car.benefitValue))}
               </td>
               <td className="py-3 px-4 text-right text-gray-700">
                 <span>{formatCurrency(car.totalCostFromRAM)}</span>
@@ -188,4 +247,3 @@ export default function CarTable({
     </div>
   )
 }
-

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, ExternalLink } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import { calculateCarMetrics, type CarInput, type CarCalculations } from './lib/calculations'
 import CarModal from './components/CarModal'
@@ -219,65 +219,27 @@ function App() {
       
       {/* B3 Header */}
       <header className="bg-white shadow-sm sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <a href="https://b3.se" target="_blank" rel="noopener noreferrer" className="b3-logo">
-                <div className="bg-b3-turquoise text-white font-bold text-2xl px-3 py-1.5 rounded-lg">
-                  b3
-                </div>
-              </a>
-              <nav className="hidden md:flex items-center gap-6 text-gray-600">
-                <span className="font-semibold text-b3-turquoise border-b-2 border-b3-turquoise pb-1">
-                  Förmånsbilskalkylator
-                </span>
-                <a href="https://b3.se/case" target="_blank" rel="noopener noreferrer" 
-                   className="hover:text-b3-turquoise transition-colors flex items-center gap-1">
-                  Case <ExternalLink size={14} />
-                </a>
-                <a href="https://b3.se/karriar" target="_blank" rel="noopener noreferrer"
-                   className="hover:text-b3-turquoise transition-colors flex items-center gap-1">
-                  Karriär <ExternalLink size={14} />
-                </a>
-              </nav>
-            </div>
-            <a href="https://b3.se/kontakt" target="_blank" rel="noopener noreferrer"
-               className="hidden sm:flex items-center gap-2 bg-b3-turquoise hover:bg-b3-turquoise-dark text-white px-4 py-2 rounded-lg font-medium transition-colors">
-              Kontakt
+        <div className="max-w-[1800px] mx-auto px-6 py-4">
+          <div className="flex items-center gap-4">
+            <a href="https://b3.se" target="_blank" rel="noopener noreferrer" className="b3-logo">
+              <div className="bg-b3-turquoise text-white font-bold text-2xl px-3 py-1.5 rounded-lg">
+                b3
+              </div>
             </a>
+            <span className="font-semibold text-b3-turquoise text-xl">
+              Förmånsbilskalkylator
+            </span>
           </div>
         </div>
       </header>
 
       {/* Hero Section */}
       <section className="bg-gray-100 border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-6 py-12">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-            <div>
-              <p className="text-sm font-medium text-b3-turquoise uppercase tracking-wider mb-2">
-                Verktyg
-              </p>
-              <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
-                Förmånsbilskalkylator
-              </h1>
-              <p className="text-lg text-gray-600 max-w-2xl">
-                Jämför total ägandekostnad för förmånsbilar enligt B3s RAM-modell. 
-                Beräkna förmånsvärde, RAM-kostnad och kostnad per mil baserat på dina personliga förutsättningar.
-              </p>
-            </div>
-            <div className="flex-shrink-0">
-              <button
-                onClick={() => {
-                  setEditingCar(null)
-                  setIsModalOpen(true)
-                }}
-                className="flex items-center gap-2 bg-b3-turquoise hover:bg-b3-turquoise-dark text-white px-8 py-4 rounded-xl transition-all shadow-lg hover:shadow-xl font-semibold text-lg"
-              >
-                <Plus size={24} />
-                Lägg till bil
-              </button>
-            </div>
-          </div>
+        <div className="max-w-[1800px] mx-auto px-6 py-8">
+          <p className="text-gray-600">
+            Jämför total ägandekostnad för förmånsbilar enligt B3s RAM-modell. 
+            Beräkna förmånsvärde, RAM-kostnad och kostnad per mil baserat på dina personliga förutsättningar.
+          </p>
         </div>
       </section>
 
@@ -342,6 +304,7 @@ function App() {
                 onSort={handleSort}
                 onEdit={handleEditCar}
                 onDelete={handleDeleteCar}
+                marginalTaxRate={userSettings.marginalTaxRate}
               />
             )}
           </div>
@@ -350,60 +313,14 @@ function App() {
 
       {/* B3 Footer */}
       <footer className="bg-gray-900 text-white mt-auto">
-        <div className="max-w-7xl mx-auto px-6 py-12">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {/* Logo & tagline */}
-            <div>
-              <div className="bg-b3-turquoise text-white font-bold text-2xl px-3 py-1.5 rounded-lg inline-block mb-4">
+        <div className="max-w-[1800px] mx-auto px-6 py-6">
+          <div className="flex items-center gap-4">
+            <a href="https://b3.se" target="_blank" rel="noopener noreferrer" className="b3-logo">
+              <div className="bg-b3-turquoise text-white font-bold text-xl px-2.5 py-1 rounded-lg">
                 b3
               </div>
-              <p className="text-gray-400 italic">Creating possibilities together</p>
-            </div>
-
-            {/* Contact */}
-            <div>
-              <h3 className="font-semibold text-lg mb-4">Kontakta oss</h3>
-              <div className="space-y-2 text-gray-400">
-                <p>Telefon: 08-410 143 40</p>
-                <p>E-post: info@b3.se</p>
-                <p>Besöksadress: Wallingatan 2, vån 5, Stockholm</p>
-              </div>
-            </div>
-
-            {/* Links */}
-            <div>
-              <h3 className="font-semibold text-lg mb-4">Länkar</h3>
-              <div className="space-y-2">
-                <a href="https://b3.se" target="_blank" rel="noopener noreferrer" 
-                   className="block text-gray-400 hover:text-b3-turquoise transition-colors">
-                  b3.se
-                </a>
-                <a href="https://b3.se/karriar" target="_blank" rel="noopener noreferrer"
-                   className="block text-gray-400 hover:text-b3-turquoise transition-colors">
-                  Lediga tjänster
-                </a>
-                <a href="https://b3.se/case" target="_blank" rel="noopener noreferrer"
-                   className="block text-gray-400 hover:text-b3-turquoise transition-colors">
-                  Kundcase
-                </a>
-              </div>
-            </div>
-          </div>
-
-          <div className="border-t border-gray-800 mt-8 pt-8 flex flex-col sm:flex-row justify-between items-center gap-4">
-            <p className="text-gray-500 text-sm">
-              © {new Date().getFullYear()} B3 Consulting Group. Alla rättigheter förbehållna.
-            </p>
-            <div className="flex gap-4 text-gray-500 text-sm">
-              <a href="https://b3.se/integritetspolicy" target="_blank" rel="noopener noreferrer"
-                 className="hover:text-b3-turquoise transition-colors">
-                Integritetspolicy
-              </a>
-              <a href="https://b3.se/code-of-conduct" target="_blank" rel="noopener noreferrer"
-                 className="hover:text-b3-turquoise transition-colors">
-                Code of Conduct
-              </a>
-            </div>
+            </a>
+            <p className="text-gray-400 italic text-sm">Creating possibilities together</p>
           </div>
         </div>
       </footer>
