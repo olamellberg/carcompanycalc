@@ -407,12 +407,24 @@ export function calculateSalaryEquivalent(
  * Calculate cost per mile (krona per mil)
  * Based on the net salary equivalent (what you "pay" in lost net salary per mile)
  */
+/**
+ * Calculate cost per mile (kostnad per mil)
+ * 
+ * Total privat kostnad per mil = (Motsv. nettolön + Förmånskostnad) / antal mil
+ * 
+ * @param netSalaryEquivalent - Motsvarande nettolön per år
+ * @param benefitTaxCost - Förmånskostnad per år (förmånsvärde × marginalskatt)
+ * @param annualKm - Årlig körsträcka i km
+ */
 export function calculateCostPerMile(
   netSalaryEquivalent: number,
+  benefitTaxCost: number,
   annualKm: number = AVERAGE_ANNUAL_KM
 ): number {
   const annualMiles = annualKm / AVERAGE_KM_PER_MILE
-  const costPerMile = netSalaryEquivalent / annualMiles
+  // Total privat kostnad = förlorad nettolön + skatt på förmånsvärdet
+  const totalPrivateCost = netSalaryEquivalent + benefitTaxCost
+  const costPerMile = totalPrivateCost / annualMiles
   return Math.round(costPerMile * 100) / 100 // Round to 2 decimals
 }
 
@@ -458,7 +470,10 @@ export function calculateCarMetrics(car: CarInput, marginalTaxRate: number = MAR
   // Beräkna lönemotsvarande baserat på leasingkostnad och förmånsvärde
   const annualLeasingForCalc = car.annualLeasingCost || (car.purchasePrice * 0.20) // Fallback till 20% avskrivning
   const salaryEquivalent = calculateSalaryEquivalent(annualLeasingForCalc, benefitValue, marginalTaxRate)
-  const costPerMile = calculateCostPerMile(salaryEquivalent, annualKm)
+  
+  // Förmånskostnad per år = förmånsvärde × marginalskatt
+  const benefitTaxCost = benefitValue * marginalTaxRate
+  const costPerMile = calculateCostPerMile(salaryEquivalent, benefitTaxCost, annualKm)
   
   return {
     id: car.id,

@@ -21,7 +21,7 @@ const columnDescriptions: Record<string, string> = {
   benefitTaxCost: 'Vad du betalar i skatt på förmånsvärdet per månad.\n\nBeräkning:\n• Förmånsvärde (år) ÷ 12 × din marginalskatt\n\nDetta är den faktiska kostnaden som dras från din nettolön varje månad för att ha förmånsbilen.',
   totalCostFromRAM: 'Total kostnad från RAM per år / månad:\n• Leasingkostnad\n• + Arbetsgivaravgifter på förmånsvärde (31,42%)\n• + Ev. driftskostnader som ej ingår i leasing',
   salaryEquivalent: 'Motsvarande nettolön om pengarna betalats ut som lön istället:\n\n• Arbetsgivarens kostnad = Leasing + arbetsgivaravgifter\n• Bruttolön = Kostnad ÷ 1,3142\n• Nettolön = Bruttolön × (1 - marginalskatt)',
-  costPerMile: 'Kostnad per mil körning:\n• Motsv. Nettolön ÷ Årlig körsträcka i mil\n• Visar vad varje mil "kostar" dig i förlorad nettolön'
+  costPerMile: 'Total privat kostnad per mil:\n• (Motsv. Nettolön + Förmånskostnad) ÷ antal mil\n• Inkluderar både förlorad nettolön OCH skatten du betalar på förmånsvärdet\n• Visar den faktiska totalkostnaden per mil för dig privat'
 }
 
 export default function CarTable({
