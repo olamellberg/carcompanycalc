@@ -284,7 +284,7 @@ export default function CarModal({ car, onClose, onSave }: CarModalProps) {
         <div className="sticky top-0 bg-white border-b-2 border-b3-beige px-6 py-4 flex justify-between items-center rounded-t-b3">
           <div className="flex items-center gap-3">
             <div className="bg-b3-turquoise text-white font-bold text-xl px-3 py-1 rounded-lg">
-              b3
+              B3
             </div>
             <h2 className="text-2xl font-bold text-b3-grey">
               {car ? 'Redigera bil' : 'Lägg till bil'}

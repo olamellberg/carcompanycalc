@@ -156,16 +156,13 @@ export default function CarTable({
               <SortButton field="annualLeasingCost" label="Leasing (mån)" />
             </th>
             <th className="text-right py-3 px-4 font-semibold text-gray-700">
-              <SortButton field="benefitValue" label="Förmånsvärde (år)" />
-            </th>
-            <th className="text-right py-3 px-4 font-semibold text-gray-700">
-              <BenefitTaxLabel />
-            </th>
-            <th className="text-right py-3 px-4 font-semibold text-gray-700">
               <SortButton field="totalCostFromRAM" label="RAM-kostnad (år/mån)" />
             </th>
             <th className="text-right py-3 px-4 font-semibold text-gray-700">
               <SortButton field="salaryEquivalent" label="Motsv. Nettolön (år/mån)" />
+            </th>
+            <th className="text-right py-3 px-4 font-semibold text-gray-700">
+              <BenefitTaxLabel />
             </th>
             <th className="text-right py-3 px-4 font-semibold text-gray-700">
               <SortButton field="costPerMile" label="Kostnad/mil" />
@@ -204,12 +201,6 @@ export default function CarTable({
                 }
               </td>
               <td className="py-3 px-4 text-right text-gray-700">
-                {formatCurrency(car.benefitValue)}
-              </td>
-              <td className="py-3 px-4 text-right text-gray-700 font-medium text-b3-pink">
-                {formatCurrency(calculateBenefitTaxCost(car.benefitValue))}
-              </td>
-              <td className="py-3 px-4 text-right text-gray-700">
                 <span>{formatCurrency(car.totalCostFromRAM)}</span>
                 <span className="text-gray-400 mx-1">/</span>
                 <span className="text-gray-500">{formatCurrency(Math.round(car.totalCostFromRAM / 12))}</span>
@@ -218,6 +209,9 @@ export default function CarTable({
                 <span>{formatCurrency(car.salaryEquivalent)}</span>
                 <span className="text-gray-400 mx-1">/</span>
                 <span className="text-gray-500">{formatCurrency(Math.round(car.salaryEquivalent / 12))}</span>
+              </td>
+              <td className="py-3 px-4 text-right text-gray-700 font-medium text-b3-pink">
+                {formatCurrency(calculateBenefitTaxCost(car.benefitValue))}
               </td>
               <td className="py-3 px-4 text-right text-gray-700 font-medium">
                 {formatNumber(car.costPerMile, 2)} kr/mil

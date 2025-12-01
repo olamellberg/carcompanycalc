@@ -223,7 +223,7 @@ function App() {
           <div className="flex items-center gap-4">
             <a href="https://b3.se" target="_blank" rel="noopener noreferrer" className="b3-logo">
               <div className="bg-b3-turquoise text-white font-bold text-2xl px-3 py-1.5 rounded-lg">
-                b3
+                B3
               </div>
             </a>
             <span className="font-semibold text-b3-turquoise text-xl">
@@ -317,7 +317,7 @@ function App() {
           <div className="flex items-center gap-4">
             <a href="https://b3.se" target="_blank" rel="noopener noreferrer" className="b3-logo">
               <div className="bg-b3-turquoise text-white font-bold text-xl px-2.5 py-1 rounded-lg">
-                b3
+                B3
               </div>
             </a>
             <p className="text-gray-400 italic text-sm">Creating possibilities together</p>
