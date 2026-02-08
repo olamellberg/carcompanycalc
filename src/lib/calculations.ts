@@ -1,16 +1,17 @@
-// Swedish tax rules for company cars (förmånsbil) 2025
+// Swedish tax rules for company cars (förmånsbil) 2026
 // Based on B3 RAM policies (B16: Lönepolicy fast ersättning RAM, C11: Riktlinjer för RAM)
-// and Swedish tax regulations 2025
+// and Swedish tax regulations 2026
 
-// Constants for 2025 (Skatteverket)
-// Källa: https://www4.skatteverket.se/rattsligvagledning/edition/2025.7/321424.html
-// Prisbasbelopp 2025 = 58 800 kr
-const BENEFIT_BASE_AMOUNT = 10710 // 0,29 × 0,625 × prisbasbelopp = förmånens grundbelopp
-const PERCENT_OF_PRICE = 0.09 // 9% av bilens nybilspris
-const INTEREST_RATE_FACTOR = 0.0196 // Statslåneränta (1,96% för 2025)
-const RUNNING_COSTS = 5292 // 0,09 × prisbasbelopp = löpande kostnader per år
+// Constants for 2026 (Skatteverket)
+// Källa: https://www.skatteverket.se/privat/skatter/beloppochprocent/2026.4.1522bf3f19aea8075ba21.html
+// Prisbasbelopp 2026 = 59 200 kr
+// Statslåneränta (SLR) 30/11 2025 = 2,55%
+const BENEFIT_BASE_AMOUNT = 17168 // 0,29 × prisbasbelopp (59 200) = förmånens grundbelopp
+const PERCENT_OF_PRICE = 0.13 // 13% av bilens nybilspris (upp till 7,5 × prisbasbelopp)
+const INTEREST_RATE_FACTOR = 0.02785 // Räntedel: 70% × SLR + 1% = 0,70 × 0,0255 + 0,01 = 2,785%
+const RUNNING_COSTS = 5328 // 0,09 × prisbasbelopp = löpande kostnader per år (äldre bilar)
 
-// Miljöbilsreduktioner 2025
+// Miljöbilsreduktioner 2026
 // Elbilar: 10 000 kr per helår (max 50% av förmånsvärdet)
 // Laddhybrider: Beror på elektrisk räckvidd
 const ELECTRIC_CAR_REDUCTION_PER_YEAR = 10000 // kr per år för elbil
@@ -47,7 +48,7 @@ export interface CarInput {
   insuranceIncludedInLeasing?: boolean // Om försäkring ingår i leasing
   maintenanceIncludedInLeasing?: boolean // Om underhåll ingår i leasing
   registeredAfterJuly2022?: boolean // Om bilen registrerades efter 1 juli 2022
-  vehicleTax?: number // Fordonsskatt 2025 (kr/år)
+  vehicleTax?: number // Fordonsskatt 2026 (kr/år)
   extraEquipment?: number // Extrautrustning (kr)
   electricRange?: number // Elektrisk räckvidd i km (för laddhybrider)
 }
@@ -79,31 +80,31 @@ export interface CarCalculations {
 }
 
 /**
- * Calculate förmånsvärde (benefit value) based on Swedish tax rules 2025
- * 
+ * Calculate förmånsvärde (benefit value) based on Swedish tax rules 2026
+ *
  * Beräkningsformel enligt Skatteverket:
- * 
+ *
  * För bilar registrerade EFTER 1 juli 2022:
  * Förmånsvärde = Grundbelopp + Procent av pris + Räntedel + Fordonsskatt
- * 
+ *
  * För bilar registrerade FÖRE 1 juli 2022:
  * Förmånsvärde = Grundbelopp + Procent av pris + Räntedel + Löpande kostnader
- * 
+ *
  * Där:
- * - Grundbelopp = 0,29 × 0,625 × prisbasbelopp = 10 710 kr
- * - Procent av pris = 9% × (nybilspris + extrautrustning)
- * - Räntedel = Statslåneränta × (nybilspris + extrautrustning)
- * - Fordonsskatt = Faktisk fordonsskatt för 2025
- * - Löpande kostnader = 0,09 × prisbasbelopp = 5 292 kr (endast för äldre bilar)
- * 
+ * - Grundbelopp = 0,29 × prisbasbelopp (59 200) = 17 168 kr
+ * - Procent av pris = 13% × (nybilspris + extrautrustning)
+ * - Räntedel = (70% × SLR + 1%) × (nybilspris + extrautrustning) = 2,785%
+ * - Fordonsskatt = Faktisk fordonsskatt för 2026
+ * - Löpande kostnader = 0,09 × prisbasbelopp = 5 328 kr (endast för äldre bilar)
+ *
  * Tjänstekörningsreduktion:
  * - Om bilen körs minst 3000 mil i tjänsten per år → 25% reduktion på grundbeloppet
- * 
+ *
  * Miljöbilsreduktioner:
  * - ELBILAR: Reduktion med 10 000 kr/år (max 50% av beräknat förmånsvärde)
  * - LADDHYBRIDER: Reduktion beroende på elektrisk räckvidd
- * 
- * Källa: https://www4.skatteverket.se/rattsligvagledning/edition/2025.7/321424.html
+ *
+ * Källa: https://www.skatteverket.se/privat/skatter/beloppochprocent/2026.4.1522bf3f19aea8075ba21.html
  */
 export function calculateBenefitValue(
   purchasePrice: number,
@@ -111,7 +112,7 @@ export function calculateBenefitValue(
   isPluginHybrid: boolean = false,
   electricRange?: number, // Elektrisk räckvidd i km (för laddhybrider)
   registeredAfterJuly2022: boolean = true, // Antar nyare bil som default
-  vehicleTax: number = 5292, // Default = löpande kostnader
+  vehicleTax: number = 5328, // Default = löpande kostnader
   extraEquipment: number = 0, // Extrautrustning
   serviceMilesPerYear: number = 500 // Tjänstekörning mil/år (default 500 = INGEN reduktion)
 ): number {
@@ -141,20 +142,20 @@ export function calculateBenefitValue(
     taxOrRunningCosts = vehicleTax
   } else {
     // Äldre bilar: Använd schablonbelopp för löpande kostnader
-    taxOrRunningCosts = RUNNING_COSTS // 5 292 kr
+    taxOrRunningCosts = RUNNING_COSTS // 5 328 kr
   }
   
   let benefitValue = grundbelopp + percentOfPrice + interestComponent + taxOrRunningCosts
 
-  console.log('📊 Förmånsvärdesberäkning 2025')
+  console.log('📊 Förmånsvärdesberäkning 2026')
   console.log('  - Inköpspris:', purchasePrice.toLocaleString('sv-SE'), 'kr')
   if (extraEquipment > 0) {
     console.log('  - Extrautrustning:', extraEquipment.toLocaleString('sv-SE'), 'kr')
     console.log('  - Totalpris:', totalPrice.toLocaleString('sv-SE'), 'kr')
   }
   console.log('  - Grundbelopp:', Math.round(grundbelopp), 'kr', hasServiceMileReduction ? '(reducerat 25%)' : '')
-  console.log('  - 9% av pris:', Math.round(percentOfPrice), 'kr')
-  console.log('  - Räntedel (1,96%):', Math.round(interestComponent), 'kr')
+  console.log('  - 13% av pris:', Math.round(percentOfPrice), 'kr')
+  console.log('  - Räntedel (2,785%):', Math.round(interestComponent), 'kr')
   console.log('  -', registeredAfterJuly2022 ? 'Fordonsskatt:' : 'Löpande kostnader:', Math.round(taxOrRunningCosts), 'kr')
   console.log('  = Summa innan miljöreduktion:', Math.round(benefitValue), 'kr')
 
@@ -275,8 +276,8 @@ export function calculateTCOPrivate(
  * - Vid mindre än 100 tjänstemil per år → ingen moms lyfts på leasing
  * 
  * Ytterligare kostnader:
- * - Tax compensation for employee (förmånsvärde is taxed as income)
- * - Employer social fees on the tax compensation
+ * - Arbetsgivaravgifter på förmånsvärdet (31,42% - obligatoriskt)
+ * - NOTE: B3 ger INGEN skatteersättning - anställd betalar förmånsskatten själv
  */
 export function calculateTotalCostFromRAM(
   purchasePrice: number,
@@ -344,20 +345,17 @@ export function calculateTotalCostFromRAM(
   
   carOperatingCosts += annualInsurance + annualMaintenance + annualTax
   
-  // 2. Tax compensation for employee
-  // Employee pays tax on förmånsvärde (benefit value)
-  // If company compensates, they need to pay the tax amount
-  // The tax is: benefitValue * marginalTaxRate
-  const taxOnBenefitValue = benefitValue * MARGINAL_TAX_RATE
-  
-  // 3. Employer social fees on the tax compensation
-  // If company pays tax compensation as salary, employer fees apply (31.42%)
-  const grossSalaryForTax = taxOnBenefitValue / (1 - MARGINAL_TAX_RATE)
-  const employerSocialFees = grossSalaryForTax * EMPLOYER_SOCIAL_FEE
-  
+  // 2. Arbetsgivaravgifter på förmånsvärdet (obligatoriskt, 31.42%)
+  // Förmånsvärdet är underlag för arbetsgivaravgifter oavsett om skatteersättning ges
+  const employerSocialFees = benefitValue * EMPLOYER_SOCIAL_FEE
+
+  // NOTE: B3 kompenserar INTE den anställde för skatten på förmånsvärdet.
+  // Den anställde betalar förmånsskatten själv via löneavdrag.
+  // Därför ingår ingen skatteersättning i RAM-kostnaden.
+
   // Total annual cost from RAM perspective
   // This is what belastar ramen enligt B16 och C11
-  const totalCost = carOperatingCosts + taxOnBenefitValue + employerSocialFees
+  const totalCost = carOperatingCosts + employerSocialFees
   
   return Math.round(totalCost)
 }
@@ -444,7 +442,7 @@ export function calculateCarMetrics(car: CarInput, marginalTaxRate: number = MAR
     car.isPluginHybrid || false,
     car.electricRange,
     car.registeredAfterJuly2022 !== undefined ? car.registeredAfterJuly2022 : true,
-    car.vehicleTax || 5292,
+    car.vehicleTax || 5328,
     car.extraEquipment || 0,
     car.serviceMiles || 500
   )

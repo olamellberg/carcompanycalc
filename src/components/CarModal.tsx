@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { X, Loader2, ChevronDown } from 'lucide-react'
+import { useState, useEffect, useRef, useMemo } from 'react'
+import { X, Loader2, ChevronDown, Search } from 'lucide-react'
 import { calculateBenefitValue, type CarInput, type CarCalculations } from '../lib/calculations'
 import { calculateAnnualLeasing } from '../lib/skatteverketApi'
 import { searchCarModels, type CarSearchResult } from '../lib/carSearchApi'
@@ -32,9 +32,14 @@ export default function CarModal({ car, onClose, onSave }: CarModalProps) {
   const [selectedModelId, setSelectedModelId] = useState('')
   const [availableModels, setAvailableModels] = useState<CarSearchResult[]>([])
   const [isLoadingModels, setIsLoadingModels] = useState(false)
+  const [modelSearchQuery, setModelSearchQuery] = useState('')
+  const [isModelDropdownOpen, setIsModelDropdownOpen] = useState(false)
+  const modelDropdownRef = useRef<HTMLDivElement>(null)
+  const modelSearchInputRef = useRef<HTMLInputElement>(null)
   
   const [model, setModel] = useState('')
-  const [purchasePrice, setPurchasePrice] = useState('')
+  const [nybilspris, setNybilspris] = useState('') // Skatteverkets nybilspris (för förmånsvärde)
+  const [purchasePrice, setPurchasePrice] = useState('') // Faktiskt inköpspris (för leasing)
   const [benefitValue, setBenefitValue] = useState('')
   const [isElectric, setIsElectric] = useState(false)
   const [isPluginHybrid, setIsPluginHybrid] = useState(false)
@@ -55,6 +60,27 @@ export default function CarModal({ car, onClose, onSave }: CarModalProps) {
   const [extraEquipment, setExtraEquipment] = useState('0') // Default: ingen extrautrustning
   const [electricRange, setElectricRange] = useState('') // Elektrisk räckvidd för laddhybrider
   
+  // Filtrera modeller baserat på sökfråga
+  const filteredModels = useMemo(() => {
+    if (!modelSearchQuery.trim()) return availableModels
+    const q = modelSearchQuery.toLowerCase()
+    return availableModels.filter(m =>
+      m.modell.toLowerCase().includes(q) ||
+      m.bransletyp.toLowerCase().includes(q)
+    )
+  }, [availableModels, modelSearchQuery])
+
+  // Stäng dropdown vid klick utanför
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (modelDropdownRef.current && !modelDropdownRef.current.contains(e.target as Node)) {
+        setIsModelDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
   // Ladda modeller när år och märke väljs
   useEffect(() => {
     if (selectedYear && selectedBrand) {
@@ -85,9 +111,10 @@ export default function CarModal({ car, onClose, onSave }: CarModalProps) {
       // Sätt modellnamn
       setModel(`${selectedCar.marke} ${selectedCar.modell} (${selectedCar.tillverkningsar})`)
       
-      // Sätt pris
+      // Sätt nybilspris (Skatteverket, för förmånsvärde) och inköpspris (för leasing)
       if (selectedCar.nybilspris > 0) {
-        setPurchasePrice(selectedCar.nybilspris.toString())
+        setNybilspris(selectedCar.nybilspris.toString())
+        setPurchasePrice(selectedCar.nybilspris.toString()) // Förfyll med nybilspris, kan ändras
       }
       
       // Detektera drivlina
@@ -146,6 +173,7 @@ export default function CarModal({ car, onClose, onSave }: CarModalProps) {
   useEffect(() => {
     if (car) {
       setModel(car.model)
+      setNybilspris(car.purchasePrice.toString()) // Nybilspris från sparad data
       setPurchasePrice(car.purchasePrice.toString())
       setBenefitValue(car.benefitValue.toString())
       setIsElectric(car.isElectric || false)
@@ -166,6 +194,7 @@ export default function CarModal({ car, onClose, onSave }: CarModalProps) {
       setAutoCalculateBenefit(false)
     } else {
       setModel('')
+      setNybilspris('')
       setPurchasePrice('')
       setBenefitValue('')
       setIsElectric(false)
@@ -186,8 +215,8 @@ export default function CarModal({ car, onClose, onSave }: CarModalProps) {
   }, [car])
 
   useEffect(() => {
-    if (autoCalculateBenefit && purchasePrice) {
-      const price = parseFloat(purchasePrice)
+    if (autoCalculateBenefit && nybilspris) {
+      const price = parseFloat(nybilspris)
       const tax = parseFloat(vehicleTax) || 0
       const equipment = parseFloat(extraEquipment) || 0
       const range = parseFloat(electricRange) || undefined
@@ -208,9 +237,9 @@ export default function CarModal({ car, onClose, onSave }: CarModalProps) {
       }
     }
   }, [
-    purchasePrice, 
-    isElectric, 
-    isPluginHybrid, 
+    nybilspris,
+    isElectric,
+    isPluginHybrid,
     electricRange,
     registeredAfterJuly2022,
     vehicleTax,
@@ -346,37 +375,91 @@ export default function CarModal({ car, onClose, onSave }: CarModalProps) {
                 </div>
               </div>
               
-              {/* Steg 3: Bilmodell */}
-              <div>
+              {/* Steg 3: Bilmodell (sökbar dropdown) */}
+              <div ref={modelDropdownRef}>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Bilmodell *
                 </label>
                 <div className="relative">
-                  <select
-                    value={selectedModelId}
-                    onChange={(e) => handleModelSelect(e.target.value)}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selectedBrand && !isLoadingModels) {
+                        setIsModelDropdownOpen(!isModelDropdownOpen)
+                        setModelSearchQuery('')
+                        setTimeout(() => modelSearchInputRef.current?.focus(), 50)
+                      }
+                    }}
                     disabled={!selectedBrand || isLoadingModels}
-                    className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-b3-turquoise focus:border-transparent appearance-none bg-white disabled:bg-gray-100 disabled:text-gray-500"
+                    className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg text-left bg-white disabled:bg-gray-100 disabled:text-gray-500 focus:ring-2 focus:ring-b3-turquoise focus:border-transparent"
                   >
                     {isLoadingModels ? (
-                      <option value="">Laddar modeller...</option>
+                      'Laddar modeller...'
+                    ) : !selectedBrand ? (
+                      'Välj märke först...'
                     ) : availableModels.length === 0 ? (
-                      <option value="">{selectedBrand ? 'Inga modeller hittades' : 'Välj märke först...'}</option>
+                      'Inga modeller hittades'
+                    ) : selectedModelId ? (
+                      <span className="truncate block">
+                        {availableModels.find(m => m.id === selectedModelId)?.modell || 'Välj modell...'}
+                      </span>
                     ) : (
-                      <>
-                        <option value="">Välj modell...</option>
-                        {availableModels.map(m => (
-                          <option key={m.id} value={m.id}>
-                            {m.modell} ({m.bransletyp}) - {m.nybilspris.toLocaleString('sv-SE')} kr
-                          </option>
-                        ))}
-                      </>
+                      'Välj modell...'
                     )}
-                  </select>
+                  </button>
                   {isLoadingModels ? (
                     <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 text-b3-turquoise animate-spin" size={18} />
                   ) : (
                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={18} />
+                  )}
+
+                  {/* Dropdown med sökfält */}
+                  {isModelDropdownOpen && availableModels.length > 0 && (
+                    <div className="absolute z-50 mt-1 w-full bg-white border border-gray-300 rounded-lg shadow-xl max-h-80 flex flex-col">
+                      {/* Sökfält */}
+                      <div className="p-2 border-b border-gray-200 sticky top-0 bg-white">
+                        <div className="relative">
+                          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                          <input
+                            ref={modelSearchInputRef}
+                            type="text"
+                            value={modelSearchQuery}
+                            onChange={(e) => setModelSearchQuery(e.target.value)}
+                            placeholder="Sök modell..."
+                            className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-b3-turquoise focus:border-transparent"
+                          />
+                        </div>
+                        <p className="text-xs text-gray-400 mt-1">
+                          {filteredModels.length} av {availableModels.length} modeller
+                        </p>
+                      </div>
+
+                      {/* Modellista */}
+                      <div className="overflow-y-auto flex-1">
+                        {filteredModels.length === 0 ? (
+                          <div className="p-3 text-sm text-gray-500 text-center">
+                            Inga modeller matchar "{modelSearchQuery}"
+                          </div>
+                        ) : (
+                          filteredModels.map(m => (
+                            <button
+                              key={m.id}
+                              type="button"
+                              onClick={() => {
+                                handleModelSelect(m.id)
+                                setIsModelDropdownOpen(false)
+                                setModelSearchQuery('')
+                              }}
+                              className={`w-full text-left px-3 py-2 text-sm hover:bg-b3-turquoise hover:bg-opacity-10 transition-colors ${
+                                selectedModelId === m.id ? 'bg-b3-turquoise bg-opacity-15 font-medium' : ''
+                              }`}
+                            >
+                              {m.modell} <span className="text-gray-400">({m.bransletyp})</span> – {m.nybilspris.toLocaleString('sv-SE')} kr
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>
@@ -420,8 +503,28 @@ export default function CarModal({ car, onClose, onSave }: CarModalProps) {
           )}
 
           <div>
+            <label htmlFor="nybilspris" className="block text-sm font-medium text-gray-700 mb-2">
+              Nybilspris enligt Skatteverket (kr) *
+            </label>
+            <input
+              type="number"
+              id="nybilspris"
+              value={nybilspris}
+              onChange={(e) => setNybilspris(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-b3-turquoise focus:border-transparent bg-gray-50"
+              placeholder="Fylls i automatiskt vid modellval"
+              min="0"
+              step="1"
+              required
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Används för beräkning av förmånsvärde. Hämtas automatiskt från Skatteverkets databas.
+            </p>
+          </div>
+
+          <div>
             <label htmlFor="purchasePrice" className="block text-sm font-medium text-gray-700 mb-2">
-              Inköpspris (kr) *
+              Faktiskt inköpspris (kr) *
             </label>
             <input
               type="number"
@@ -434,6 +537,9 @@ export default function CarModal({ car, onClose, onSave }: CarModalProps) {
               step="1"
               required
             />
+            <p className="text-xs text-gray-500 mt-1">
+              Priset du faktiskt betalar. Används för leasingberäkning. Kan skilja från nybilspris vid rabatt/tillval.
+            </p>
           </div>
 
           <div>
@@ -600,7 +706,15 @@ export default function CarModal({ car, onClose, onSave }: CarModalProps) {
             {/* Fordonsskatt */}
             <div>
               <label htmlFor="vehicleTax" className="block text-sm font-medium text-gray-700 mb-2">
-                Bilens fordonsskatt för 2025 (kr/år)
+                Bilens fordonsskatt för 2026 (kr/år){' '}
+                <a
+                  href="https://fordon-fu-regnr.transportstyrelsen.se/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-b3-turquoise hover:underline text-xs font-normal"
+                >
+                  Sök fordonsskatt ↗
+                </a>
               </label>
               <input
                 type="text"
@@ -773,7 +887,7 @@ export default function CarModal({ car, onClose, onSave }: CarModalProps) {
             <p className="text-sm text-gray-600 mt-3">
               {autoCalculateBenefit ? (
                 <>
-                  ✅ Beräknas automatiskt enligt Skatteverkets regler 2025
+                  ✅ Beräknas automatiskt enligt Skatteverkets regler 2026
                   {parseFloat(serviceMiles) >= 3000 && <span className="text-green-700 font-medium block mt-1">🚗 Tjänstekörningsreduktion: -25% på grundbelopp</span>}
                   {isElectric && <span className="text-green-700 font-medium block mt-1">⚡ Elbilsreduktion: -10 000 kr/år</span>}
                   {isPluginHybrid && <span className="text-green-700 font-medium block mt-1">🔌 Laddhybridreduktion tillämpad</span>}

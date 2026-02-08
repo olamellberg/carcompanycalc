@@ -12,21 +12,19 @@ interface GlobalSettingsProps {
   onSettingsChange: (settings: UserSettings) => void
 }
 
-// Beräkna marginalskatt baserat på årsinkomst (förenklad svensk skattemodell 2025)
+// Beräkna marginalskatt baserat på årsinkomst (förenklad svensk skattemodell 2026)
 function calculateMarginalTax(monthlyGrossSalary: number): number {
   const annualSalary = monthlyGrossSalary * 12
-  
-  // Förenklad skattemodell:
-  // - Under ~614 000 kr/år: ca 32% kommunalskatt
-  // - Över ~614 000 kr/år: +20% statlig skatt = ca 52%
-  // - Över ~919 000 kr/år: +5% värnskatt (borttagen, men högre marginal)
-  
-  if (annualSalary <= 614000) {
+
+  // Förenklad skattemodell 2026:
+  // - Skiktgräns: 643 000 kr/år
+  // - Under 643 000 kr/år: ca 32% kommunalskatt
+  // - Över 643 000 kr/år: +20% statlig skatt = ca 52%
+
+  if (annualSalary <= 643000) {
     return 0.32 // Endast kommunalskatt
-  } else if (annualSalary <= 919000) {
-    return 0.52 // Kommunalskatt + statlig skatt
   } else {
-    return 0.57 // Högsta marginalskatten
+    return 0.52 // Kommunalskatt + statlig skatt
   }
 }
 
@@ -123,8 +121,7 @@ export default function GlobalSettings({ settings, onSettingsChange }: GlobalSet
               </div>
               <p className="text-xs text-gray-500 mt-1">
                 {marginalTaxPercent <= 32 && 'Endast kommunalskatt'}
-                {marginalTaxPercent > 32 && marginalTaxPercent <= 52 && 'Kommunal + statlig skatt'}
-                {marginalTaxPercent > 52 && 'Högsta marginalskatt'}
+                {marginalTaxPercent > 32 && 'Kommunal + statlig skatt'}
               </p>
             </div>
           </div>
@@ -132,7 +129,7 @@ export default function GlobalSettings({ settings, onSettingsChange }: GlobalSet
           <div className="mt-4 p-4 bg-b3-beige rounded-lg">
             <p className="text-sm text-b3-grey">
               <strong>Så påverkar inställningarna beräkningarna:</strong><br/>
-              • <strong>Bruttolön</strong> → Bestämmer din marginalskatt (32-57%)<br/>
+              • <strong>Bruttolön</strong> → Bestämmer din marginalskatt (32-52%)<br/>
               • <strong>Marginalskatt</strong> → Påverkar "Nettolön istället" och TCO-beräkningar<br/>
               • <strong>Körsträcka</strong> → Påverkar "Kostnad/mil"
             </p>
