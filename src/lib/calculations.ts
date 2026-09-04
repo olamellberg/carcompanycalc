@@ -121,18 +121,17 @@ export function calculateBenefitValue(
   }
 
   // Steg 1: Beräkna grundbelopp (med eventuell tjänstekörningsreduktion)
-  let grundbelopp = BENEFIT_BASE_AMOUNT // 10 710 kr
+  let grundbelopp = BENEFIT_BASE_AMOUNT // 17 168 kr
   
   // Om bilen körs minst 3000 mil i tjänsten → 25% reduktion på grundbeloppet
   const hasServiceMileReduction = serviceMilesPerYear >= 3000
   if (hasServiceMileReduction) {
     grundbelopp = grundbelopp * 0.75 // 25% reduktion
-    console.log('🚗 Tjänstekörning >=3000 mil/år → 25% reduktion på grundbelopp')
   }
 
   // Steg 2: Beräkna baserat på pris + extrautrustning
   const totalPrice = purchasePrice + extraEquipment
-  const percentOfPrice = totalPrice * PERCENT_OF_PRICE // 9% av totalpris
+  const percentOfPrice = totalPrice * PERCENT_OF_PRICE // 13% av totalpris
   const interestComponent = totalPrice * INTEREST_RATE_FACTOR // Räntedel
   
   // Steg 3: Lägg till fordonsskatt eller löpande kostnader
@@ -147,27 +146,12 @@ export function calculateBenefitValue(
   
   let benefitValue = grundbelopp + percentOfPrice + interestComponent + taxOrRunningCosts
 
-  console.log('📊 Förmånsvärdesberäkning 2026')
-  console.log('  - Inköpspris:', purchasePrice.toLocaleString('sv-SE'), 'kr')
-  if (extraEquipment > 0) {
-    console.log('  - Extrautrustning:', extraEquipment.toLocaleString('sv-SE'), 'kr')
-    console.log('  - Totalpris:', totalPrice.toLocaleString('sv-SE'), 'kr')
-  }
-  console.log('  - Grundbelopp:', Math.round(grundbelopp), 'kr', hasServiceMileReduction ? '(reducerat 25%)' : '')
-  console.log('  - 13% av pris:', Math.round(percentOfPrice), 'kr')
-  console.log('  - Räntedel (2,785%):', Math.round(interestComponent), 'kr')
-  console.log('  -', registeredAfterJuly2022 ? 'Fordonsskatt:' : 'Löpande kostnader:', Math.round(taxOrRunningCosts), 'kr')
-  console.log('  = Summa innan miljöreduktion:', Math.round(benefitValue), 'kr')
-
-  // Steg 2: Tillämpa miljöbilsreduktion
+  // Steg 4: Tillämpa miljöbilsreduktion
   if (isElectric) {
     // Elbil: Reduktion 10 000 kr/år, max 50% av förmånsvärdet
     const maxReduction = benefitValue * MAX_REDUCTION_PERCENTAGE
     const reduction = Math.min(ELECTRIC_CAR_REDUCTION_PER_YEAR, maxReduction)
     benefitValue = benefitValue - reduction
-    
-    console.log('  ⚡ Elbilsreduktion:', Math.round(reduction), 'kr')
-    console.log('  = Slutligt förmånsvärde:', Math.round(benefitValue), 'kr/år')
   } else if (isPluginHybrid) {
     // Laddhybrid: Reduktion beroende på elektrisk räckvidd
     // Förenklad beräkning: ca 50% av elbilsreduktionen om ingen räckvidd angiven
@@ -177,11 +161,6 @@ export function calculateBenefitValue(
       : Math.min(ELECTRIC_CAR_REDUCTION_PER_YEAR * 0.5, benefitValue * MAX_REDUCTION_PERCENTAGE)
     
     benefitValue = benefitValue - hybridReduction
-    
-    console.log('  🔌 Laddhybridreduktion:', Math.round(hybridReduction), 'kr')
-    console.log('  = Slutligt förmånsvärde:', Math.round(benefitValue), 'kr/år')
-  } else {
-    console.log('  = Slutligt förmånsvärde:', Math.round(benefitValue), 'kr/år (ingen miljöreduktion)')
   }
 
   return Math.round(benefitValue)
@@ -390,13 +369,6 @@ export function calculateSalaryEquivalent(
   // Nettolön = Bruttolön × (1 - marginalskatt)
   const netSalaryEquivalent = grossSalaryEquivalent * (1 - marginalTaxRate)
   
-  console.log('💰 Lönemotsvarande beräkning (löneväxling):')
-  console.log('  - Leasingkostnad:', Math.round(annualLeasingCost), 'kr/år')
-  console.log('  - Arbetsgivaravgifter på förmånsvärde:', Math.round(employerFeesOnBenefit), 'kr/år')
-  console.log('  - Arbetsgivarens totalkostnad:', Math.round(totalEmployerCost), 'kr/år')
-  console.log('  - Motsvarande bruttolön:', Math.round(grossSalaryEquivalent), 'kr/år')
-  console.log('  - Marginalskatt:', Math.round(marginalTaxRate * 100), '%')
-  console.log('  - Motsvarande nettolön:', Math.round(netSalaryEquivalent), 'kr/år')
   
   return Math.round(netSalaryEquivalent)
 }
@@ -500,3 +472,33 @@ export function calculateCarMetrics(car: CarInput, marginalTaxRate: number = MAR
   }
 }
 
+
+/**
+ * Månadsleasing med restvärde (annuitetsmetod)
+ * Månadskostnad = [(Pris - Nuvärde av restvärde) × r × (1+r)^n] / [(1+r)^n - 1]
+ */
+export function calculateMonthlyLeasing(
+  purchasePrice: number,
+  interestRate: number, // Årlig ränta i procent (t.ex. 5)
+  months: number,
+  residualValuePercent: number = 0.50
+): number {
+  if (purchasePrice <= 0 || months <= 0) return 0
+
+  const residualValue = purchasePrice * residualValuePercent
+  const r = interestRate / 12 / 100
+  if (r === 0) return (purchasePrice - residualValue) / months
+
+  const growth = Math.pow(1 + r, months)
+  const amountToFinance = purchasePrice - residualValue / growth
+  return amountToFinance * (r * growth) / (growth - 1)
+}
+
+export function calculateAnnualLeasing(
+  purchasePrice: number,
+  interestRate: number,
+  months: number,
+  residualValuePercent: number = 0.50
+): number {
+  return calculateMonthlyLeasing(purchasePrice, interestRate, months, residualValuePercent) * 12
+}

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { X, Loader2, ChevronDown, Search } from 'lucide-react'
 import { calculateBenefitValue, type CarInput, type CarCalculations } from '../lib/calculations'
-import { calculateAnnualLeasing } from '../lib/skatteverketApi'
+import { calculateAnnualLeasing } from '../lib/calculations'
 import { searchCarModels, type CarSearchResult } from '../lib/carSearchApi'
 
 // Hårdkodad lista med bilmärken
