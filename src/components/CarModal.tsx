@@ -287,10 +287,10 @@ export default function CarModal({ car, onClose, onSave }: CarModalProps) {
 
   const serviceMilesHint =
     miles >= 3000
-      ? 'Minst 3 000 mil ger 25 % lägre grundbelopp i förmånsvärdet.'
+      ? 'Minst 3 000 mil sätter ned förmånsvärdet till 75 %.'
       : miles < 100
         ? 'Under 100 mil lyfts ingen moms på leasingen.'
-        : 'Minst 100 mil gör att halva momsen lyfts på leasingen. Minst 3 000 mil ger 25 % lägre grundbelopp i förmånsvärdet.'
+        : 'Minst 100 mil gör att halva momsen lyfts på leasingen. Minst 3 000 mil sätter ned förmånsvärdet till 75 %.'
 
   return (
     <Dialog
