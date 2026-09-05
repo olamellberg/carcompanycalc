@@ -6,7 +6,7 @@ Webbapplikation för att jämföra förmånsbilar enligt svenska skatteregler 20
 
 ## ✨ Funktioner
 
-- **Förmånsvärde** enligt Skatteverkets regler 2026 (inkl. el-/laddhybridreduktion och tjänstekörningsreduktion)
+- **Förmånsvärde** enligt Skatteverkets regler 2026 (inkl. schablonnedsättning för el- och laddhybridbilar samt nedsättning vid ≥ 3 000 tjänstemil)
 - **RAM-kostnad** – vad bilen belastar ramen med (leasing, försäkring, underhåll, skatt, arbetsgivaravgifter)
 - **Nettolön istället** – vad pengarna hade gett i netto som lön (löneväxling)
 - **Kostnad per mil** baserat på egen körsträcka och marginalskatt
@@ -40,14 +40,18 @@ Deploy sker automatiskt till GitHub Pages vid push till `main` (`.github/workflo
 Källa: [Skatteverket, belopp och procent 2026](https://www.skatteverket.se/privat/skatter/beloppochprocent/2026.4.1522bf3f19aea8075ba21.html). Prisbasbelopp 59 200 kr, statslåneränta 2,55 %.
 
 ```
-Förmånsvärde = Grundbelopp + Prisandel + Räntedel + Fordonsskatt – Miljöreduktion
+Förmånsgrundande pris = nybilspris + extrautrustning – schablonnedsättning
+Schablonnedsättning   = 350 000 kr (elbil) eller 140 000 kr (laddhybrid), dock högst 50 % av priset.
+                        Gäller bilar som tagits i trafik 1 juli 2022 eller senare.
 
-Grundbelopp  = 0,29 × 59 200 = 17 168 kr  (–25 % vid ≥ 3 000 tjänstemil/år)
-Prisandel    = 13 % × (nybilspris + extrautrustning)
-Räntedel     = (70 % × SLR + 1 %) = 2,785 % × (nybilspris + extrautrustning)
-Fordonsskatt = faktisk skatt (bilar registrerade efter 1 juli 2022), annars schablon 5 328 kr
-Elbil        = –10 000 kr/år, max 50 % av förmånsvärdet
-Laddhybrid   = förenklad reduktion baserad på elräckvidd
+Förmånsvärde      = Prisbasbeloppsdel + Räntedel + Prisdel + Fordonsskatt
+Prisbasbeloppsdel = 0,29 × 59 200 = 17 168 kr
+Räntedel          = (70 % × SLR + 1 %) = 2,785 % × förmånsgrundande pris
+Prisdel           = 13 % × förmånsgrundande pris
+Fordonsskatt      = bilens fordonsskatt enligt vägtrafikskattelagen
+
+Vid ≥ 3 000 tjänstemil/år sätts värdet ned till 75 %. Delbelopp avrundas nedåt till hela kronor,
+vilket ger samma resultat som Skatteverkets egen beräkning.
 ```
 
 ```

@@ -3,31 +3,61 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   calculateBenefitValue,
+  calculateBenefitValueBreakdown,
   calculateTotalCostFromRAM,
   calculateSalaryEquivalent,
   calculateMonthlyLeasing,
 } from './calculations.ts'
 
-test('förmånsvärde 2026: bensinbil 500 000 kr, fordonsskatt 5 328', () => {
-  // 17 168 + 13% × 500 000 + 2,785% × 500 000 + 5 328
-  assert.equal(calculateBenefitValue(500000), 101421)
+// Skatteverkets egen uppställning 2026 för Mercedes-Benz E 300 de 4MATIC Kombi (laddhybrid):
+// nybilspris 662 000 − 140 000 = 522 000; 17 168 + 14 537 + 67 860 + 5 292 = 104 857 kr/år
+test('förmånsvärde 2026: laddhybrid matchar Skatteverkets exempel', () => {
+  const b = calculateBenefitValueBreakdown(662000, false, true, true, 5292)
+  assert.equal(b.priceReduction, 140000)
+  assert.equal(b.taxablePrice, 522000)
+  assert.equal(b.baseAmount, 17168)
+  assert.equal(b.interestPart, 14537)
+  assert.equal(b.pricePart, 67860)
+  assert.equal(b.vehicleTax, 5292)
+  assert.equal(b.total, 104857)
+  assert.equal(calculateBenefitValue(662000, false, true, true, 5292), 104857)
 })
 
-test('förmånsvärde: elbil får 10 000 kr reduktion', () => {
-  assert.equal(calculateBenefitValue(500000, true), 91421)
+test('förmånsvärde: bensinbil 500 000 kr, fordonsskatt 5 292', () => {
+  // 17 168 + 2,785 % × 500 000 + 13 % × 500 000 + 5 292
+  assert.equal(calculateBenefitValue(500000, false, false, true, 5292), 17168 + 13925 + 65000 + 5292)
 })
 
-test('förmånsvärde: elbilsreduktion max 50%', () => {
-  // 17 168 + 1 300 + 278,5 + 0 = 18 746,5 → halveras
-  assert.equal(calculateBenefitValue(10000, true, false, undefined, true, 0), 9373)
+test('förmånsvärde: elbil får nybilspriset nedsatt med 350 000 kr', () => {
+  // 900 000 − 350 000 = 550 000; 17 168 + 15 317 + 71 500 + 360
+  assert.equal(calculateBenefitValue(900000, true, false, true, 360), 104345)
 })
 
-test('förmånsvärde: >= 3000 tjänstemil ger 25% lägre grundbelopp', () => {
-  assert.equal(calculateBenefitValue(500000, false, false, undefined, true, 5328, 0, 3000), 97129)
+test('förmånsvärde: nedsättningen är högst 50 % av priset', () => {
+  // 449 900 → högst 224 950; 17 168 + 6 264 + 29 243 + 360
+  const b = calculateBenefitValueBreakdown(449900, true, false, true, 360)
+  assert.equal(b.priceReduction, 224950)
+  assert.equal(b.total, 53035)
 })
 
-test('förmånsvärde: bil före juli 2022 använder schablon 5 328', () => {
-  assert.equal(calculateBenefitValue(500000, false, false, undefined, false, 9999), 101421)
+test('förmånsvärde: extrautrustning läggs till priset före nedsättning', () => {
+  const b = calculateBenefitValueBreakdown(600000, false, true, true, 0, 50000)
+  assert.equal(b.listPrice, 650000)
+  assert.equal(b.taxablePrice, 510000)
+})
+
+test('förmånsvärde: minst 3 000 tjänstemil ger 75 % av hela värdet', () => {
+  // 101 385 × 0,75 = 76 038,75 → 76 038
+  assert.equal(calculateBenefitValue(500000, false, false, true, 5292, 0, 3000), 76038)
+})
+
+test('förmånsvärde: bil tagen i trafik före 1 juli 2022 får ingen schablonnedsättning', () => {
+  // 17 168 + 18 436 + 86 060 + 5 292
+  assert.equal(calculateBenefitValue(662000, false, true, false, 5292), 126956)
+})
+
+test('förmånsvärde: pris 0 ger 0', () => {
+  assert.equal(calculateBenefitValue(0), 0)
 })
 
 test('RAM-kostnad: leasing med halv moms lyft + försäkring + underhåll + skatt + arbetsgivaravgift', () => {

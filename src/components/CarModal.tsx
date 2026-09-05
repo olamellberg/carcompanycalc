@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { ChevronDown, ExternalLink, Fuel, Loader2, PlugZap, Search, Zap } from 'lucide-react'
 import {
   calculateAnnualLeasing,
-  calculateBenefitValue,
+  calculateBenefitValueBreakdown,
   type CarCalculations,
   type CarInput,
 } from '../lib/calculations'
@@ -26,8 +26,8 @@ const CAR_BRANDS = [
 const currentYear = new Date().getFullYear()
 const YEARS = Array.from({ length: 11 }, (_, i) => (currentYear - i).toString())
 
-const DEFAULT_VEHICLE_TAX = '5292'
 const DEFAULT_ANNUAL_KM = 15000
+const ELECTRIC_VEHICLE_TAX = '360' // Grundavgift för elbil när registret saknar uppgift
 
 type Drivetrain = 'ice' | 'electric' | 'hybrid'
 
@@ -71,9 +71,8 @@ export default function CarModal({ car, onClose, onSave }: CarModalProps) {
   const [maintenanceIncludedInLeasing, setMaintenanceIncludedInLeasing] = useState(false)
   const [autoCalculateBenefit, setAutoCalculateBenefit] = useState(true)
   const [registeredAfterJuly2022, setRegisteredAfterJuly2022] = useState(true)
-  const [vehicleTax, setVehicleTax] = useState(DEFAULT_VEHICLE_TAX)
+  const [vehicleTax, setVehicleTax] = useState('')
   const [extraEquipment, setExtraEquipment] = useState('0')
-  const [electricRange, setElectricRange] = useState('')
 
   const [errors, setErrors] = useState<FormErrors>({})
   const [saveError, setSaveError] = useState('')
@@ -140,13 +139,11 @@ export default function CarModal({ car, onClose, onSave }: CarModalProps) {
     setIsElectric(isElectricCar)
     setIsPluginHybrid(isPluginHybridCar)
 
-    // Fordonsskatt
-    if (isElectricCar) {
-      setVehicleTax('0')
-    } else if (selectedCar.fordonsskatt) {
+    // Fordonsskatt från registret om den finns, annars grundavgiften för elbil eller tomt
+    if (selectedCar.fordonsskatt) {
       setVehicleTax(selectedCar.fordonsskatt.toString())
     } else {
-      setVehicleTax(DEFAULT_VEHICLE_TAX)
+      setVehicleTax(isElectricCar ? ELECTRIC_VEHICLE_TAX : '')
     }
 
     setAutoCalculateBenefit(true)
@@ -191,9 +188,8 @@ export default function CarModal({ car, onClose, onSave }: CarModalProps) {
       setInsuranceIncludedInLeasing(car.insuranceIncludedInLeasing || false)
       setMaintenanceIncludedInLeasing(car.maintenanceIncludedInLeasing || false)
       setRegisteredAfterJuly2022(car.registeredAfterJuly2022 !== undefined ? car.registeredAfterJuly2022 : true)
-      setVehicleTax((car.vehicleTax || 5292).toString())
+      setVehicleTax(car.vehicleTax != null ? car.vehicleTax.toString() : '')
       setExtraEquipment((car.extraEquipment || 0).toString())
-      setElectricRange((car.electricRange || 0).toString())
       setAutoCalculateBenefit(false)
     } else {
       setModel('')
@@ -209,47 +205,32 @@ export default function CarModal({ car, onClose, onSave }: CarModalProps) {
       setServiceMiles('500')
       setResidualValue('50')
       setRegisteredAfterJuly2022(true)
-      setVehicleTax(DEFAULT_VEHICLE_TAX)
+      setVehicleTax('')
       setExtraEquipment('0')
-      setElectricRange('')
       setAutoCalculateBenefit(true)
     }
   }, [car])
 
-  // Beräkna förmånsvärde automatiskt
-  useEffect(() => {
-    if (autoCalculateBenefit && nybilspris) {
-      const price = parseFloat(nybilspris)
-      const tax = parseFloat(vehicleTax) || 0
-      const equipment = parseFloat(extraEquipment) || 0
-      const range = parseFloat(electricRange) || undefined
-      const miles = parseFloat(serviceMiles) || 3000
+  // Förmånsvärdets uppställning enligt Skatteverket (visas i formuläret och styr autoberäkningen)
+  const benefitBreakdown = useMemo(() => {
+    const price = parseFloat(nybilspris)
+    if (isNaN(price) || price <= 0) return null
+    return calculateBenefitValueBreakdown(
+      price,
+      isElectric,
+      isPluginHybrid,
+      registeredAfterJuly2022,
+      parseFloat(vehicleTax) || 0,
+      parseFloat(extraEquipment) || 0,
+      parseFloat(serviceMiles) || 0
+    )
+  }, [nybilspris, isElectric, isPluginHybrid, registeredAfterJuly2022, vehicleTax, extraEquipment, serviceMiles])
 
-      if (!isNaN(price) && price > 0) {
-        const calculated = calculateBenefitValue(
-          price,
-          isElectric,
-          isPluginHybrid,
-          range,
-          registeredAfterJuly2022,
-          tax,
-          equipment,
-          miles
-        )
-        setBenefitValue(calculated.toString())
-      }
+  useEffect(() => {
+    if (autoCalculateBenefit && benefitBreakdown) {
+      setBenefitValue(benefitBreakdown.total.toString())
     }
-  }, [
-    nybilspris,
-    isElectric,
-    isPluginHybrid,
-    electricRange,
-    registeredAfterJuly2022,
-    vehicleTax,
-    extraEquipment,
-    serviceMiles,
-    autoCalculateBenefit,
-  ])
+  }, [autoCalculateBenefit, benefitBreakdown])
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -282,7 +263,6 @@ export default function CarModal({ car, onClose, onSave }: CarModalProps) {
       registeredAfterJuly2022,
       vehicleTax: vehicleTax ? parseFloat(vehicleTax) : undefined,
       extraEquipment: extraEquipment ? parseFloat(extraEquipment) : undefined,
-      electricRange: electricRange ? parseFloat(electricRange) : undefined,
     }
 
     setSaving(true)
@@ -525,28 +505,12 @@ export default function CarModal({ car, onClose, onSave }: CarModalProps) {
                 Laddhybrid
               </label>
             </div>
+            <p className="field-hint">
+              Elbilar får nybilspriset nedsatt med 350 000 kr och laddhybrider med 140 000 kr när förmånsvärdet
+              räknas, dock högst hälften av priset. Gäller bilar som togs i trafik 1 juli 2022 eller senare.
+            </p>
           </div>
 
-          {isPluginHybrid && (
-            <Field
-              label="Elektrisk räckvidd"
-              htmlFor="electricRange"
-              hint="Längre räckvidd ger större miljöreduktion i förmånsvärdet."
-              className="sm:max-w-xs"
-            >
-              <TextInput
-                id="electricRange"
-                type="number"
-                inputMode="numeric"
-                min={0}
-                step={5}
-                suffix="km"
-                value={electricRange}
-                onChange={(e) => setElectricRange(e.target.value)}
-                placeholder="60"
-              />
-            </Field>
-          )}
         </fieldset>
 
         {/* Pris */}
@@ -619,9 +583,10 @@ export default function CarModal({ car, onClose, onSave }: CarModalProps) {
               onChange={(e) => setRegisteredAfterJuly2022(e.target.checked)}
             />
             <span>
-              Bilen togs i trafik efter 1 juli 2022
+              Bilen togs i trafik 1 juli 2022 eller senare
               <span className="block text-xs text-ink-faint">
-                Då ingår bilens fordonsskatt i förmånsvärdet. För äldre bilar används schablonen 5 328 kr.
+                Styr om schablonnedsättningen för elbilar och laddhybrider gäller. Äldre miljöbilar värderas
+                utifrån en jämförbar bil, vilket kalkylatorn inte räknar på.
               </span>
             </span>
           </label>
@@ -642,7 +607,8 @@ export default function CarModal({ car, onClose, onSave }: CarModalProps) {
                     Transportstyrelsen
                     <ExternalLink size={12} aria-hidden="true" />
                   </a>
-                  .{!registeredAfterJuly2022 && ' Används inte för bilar registrerade före 1 juli 2022.'}
+                  . Läggs till förmånsvärdet.
+                  {!vehicleTax && ' Registret saknar uppgift för den här bilen.'}
                 </>
               }
             >
@@ -653,7 +619,7 @@ export default function CarModal({ car, onClose, onSave }: CarModalProps) {
                 suffix="kr/år"
                 value={vehicleTax}
                 onChange={(e) => setVehicleTax(e.target.value.replace(/[^0-9]/g, ''))}
-                placeholder={DEFAULT_VEHICLE_TAX}
+                placeholder="0"
               />
             </Field>
             <Field label="Tjänstemil per år" htmlFor="serviceMiles" hint={serviceMilesHint}>
@@ -708,18 +674,42 @@ export default function CarModal({ car, onClose, onSave }: CarModalProps) {
                 </p>
               </div>
             </div>
-            <ul className="mt-3 space-y-0.5 text-xs text-ink-soft">
-              {autoCalculateBenefit ? (
-                <>
-                  <li>Enligt Skatteverkets regler för 2026.</li>
-                  {miles >= 3000 && <li>Tjänstekörning: 25 % lägre grundbelopp.</li>}
-                  {isElectric && <li>Elbil: 10 000 kr lägre per år, högst halva förmånsvärdet.</li>}
-                  {isPluginHybrid && <li>Laddhybrid: reduktion utifrån elektrisk räckvidd.</li>}
-                </>
-              ) : (
-                <li>Manuellt angivet värde.</li>
-              )}
-            </ul>
+            {autoCalculateBenefit && benefitBreakdown ? (
+              <dl className="mt-3 space-y-0.5 text-xs text-ink-soft">
+                {benefitBreakdown.priceReduction > 0 && (
+                  <>
+                    <BreakdownRow
+                      label="Nybilspris inklusive extrautrustning"
+                      value={fmtInt(benefitBreakdown.listPrice)}
+                    />
+                    <BreakdownRow
+                      label={`Schablonnedsättning, ${isElectric ? 'elbil' : 'laddhybrid'}`}
+                      value={`−${fmtInt(benefitBreakdown.priceReduction)}`}
+                    />
+                  </>
+                )}
+                <BreakdownRow label="Förmånsgrundande pris" value={fmtInt(benefitBreakdown.taxablePrice)} strong />
+                <BreakdownRow label="Prisbasbeloppsdel, 29 % av 59 200 kr" value={fmtInt(benefitBreakdown.baseAmount)} />
+                <BreakdownRow label="Räntedel, 2,785 %" value={fmtInt(benefitBreakdown.interestPart)} />
+                <BreakdownRow label="Prisdel, 13 %" value={fmtInt(benefitBreakdown.pricePart)} />
+                <BreakdownRow label="Fordonsskatt" value={fmtInt(benefitBreakdown.vehicleTax)} />
+                {benefitBreakdown.serviceMilesReduction && (
+                  <BreakdownRow
+                    label="Minst 3 000 tjänstemil: 75 % av värdet"
+                    value={`${fmtInt(benefitBreakdown.fullValue)} × 0,75`}
+                  />
+                )}
+                <BreakdownRow label="Förmånsvärde per år" value={fmtInt(benefitBreakdown.total)} strong />
+              </dl>
+            ) : (
+              <p className="mt-3 text-xs text-ink-soft">
+                {autoCalculateBenefit
+                  ? 'Fyll i nybilspris så räknas förmånsvärdet fram.'
+                  : benefitBreakdown && benefitBreakdown.total !== parseFloat(benefitValue)
+                    ? `Manuellt angivet värde. Enligt Skatteverkets regler för 2026 blir det ${fmtInt(benefitBreakdown.total)} kr per år. Kryssa i Beräkna automatiskt för att använda det.`
+                    : 'Manuellt angivet värde.'}
+              </p>
+            )}
           </div>
         </fieldset>
 
@@ -813,5 +803,14 @@ export default function CarModal({ car, onClose, onSave }: CarModalProps) {
         </fieldset>
       </form>
     </Dialog>
+  )
+}
+
+function BreakdownRow({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+  return (
+    <div className={`flex justify-between gap-4${strong ? ' font-medium text-ink' : ''}`}>
+      <dt>{label}</dt>
+      <dd className="num">{value}</dd>
+    </div>
   )
 }

@@ -6,16 +6,19 @@
 // Källa: https://www.skatteverket.se/privat/skatter/beloppochprocent/2026.4.1522bf3f19aea8075ba21.html
 // Prisbasbelopp 2026 = 59 200 kr
 // Statslåneränta (SLR) 30/11 2025 = 2,55%
-const BENEFIT_BASE_AMOUNT = 17168 // 0,29 × prisbasbelopp (59 200) = förmånens grundbelopp
-const PERCENT_OF_PRICE = 0.13 // 13% av bilens nybilspris (upp till 7,5 × prisbasbelopp)
-const INTEREST_RATE_FACTOR = 0.02785 // Räntedel: 70% × SLR + 1% = 0,70 × 0,0255 + 0,01 = 2,785%
-const RUNNING_COSTS = 5328 // 0,09 × prisbasbelopp = löpande kostnader per år (äldre bilar)
+const BENEFIT_BASE_AMOUNT = 17168 // Prisbasbeloppsdel: 0,29 × prisbasbeloppet 59 200 kr
+const PRICE_PART_PERCENT = 13 // Prisdel: 13 % av förmånsgrundande pris
+const INTEREST_RATE_PER_100000 = 2785 // Räntedel: 70 % × SLR 2,55 % + 1 procentenhet = 2,785 %
 
-// Miljöbilsreduktioner 2026
-// Elbilar: 10 000 kr per helår (max 50% av förmånsvärdet)
-// Laddhybrider: Beror på elektrisk räckvidd
-const ELECTRIC_CAR_REDUCTION_PER_YEAR = 10000 // kr per år för elbil
-const MAX_REDUCTION_PERCENTAGE = 0.50 // Max 50% av beräknat förmånsvärde
+// Schablonnedsättning av nybilspriset för miljöanpassade bilar som tagits i trafik
+// 1 juli 2022 eller senare. Nedsättningen får högst vara 50 % av priset.
+const ELECTRIC_PRICE_REDUCTION = 350000
+const PLUGIN_HYBRID_PRICE_REDUCTION = 140000
+const MAX_PRICE_REDUCTION_SHARE = 0.5
+
+// Minst 3 000 tjänstemil per år: förmånsvärdet sätts ned till 75 %
+const SERVICE_MILES_THRESHOLD = 3000
+const SERVICE_MILES_FACTOR = 0.75
 
 // Average assumptions
 const AVERAGE_ANNUAL_KM = 15000 // Average annual kilometers
@@ -80,110 +83,96 @@ export interface CarCalculations {
 }
 
 /**
- * Calculate förmånsvärde (benefit value) based on Swedish tax rules 2026
+ * Bilförmånsvärde per år enligt Skatteverkets regler för 2026
+ * (bilar som blivit skattepliktiga 1 juli 2021 eller senare).
  *
- * Beräkningsformel enligt Skatteverket:
+ * Förmånsgrundande pris = nybilspris + extrautrustning − schablonnedsättning
+ *   Schablonnedsättning för bilar tagna i trafik 1 juli 2022 eller senare:
+ *   elbil 350 000 kr, laddhybrid 140 000 kr, dock högst 50 % av priset.
  *
- * För bilar registrerade EFTER 1 juli 2022:
- * Förmånsvärde = Grundbelopp + Procent av pris + Räntedel + Fordonsskatt
- *
- * För bilar registrerade FÖRE 1 juli 2022:
- * Förmånsvärde = Grundbelopp + Procent av pris + Räntedel + Löpande kostnader
- *
- * Där:
- * - Grundbelopp = 0,29 × prisbasbelopp (59 200) = 17 168 kr
- * - Procent av pris = 13% × (nybilspris + extrautrustning)
- * - Räntedel = (70% × SLR + 1%) × (nybilspris + extrautrustning) = 2,785%
- * - Fordonsskatt = Faktisk fordonsskatt för 2026
- * - Löpande kostnader = 0,09 × prisbasbelopp = 5 328 kr (endast för äldre bilar)
- *
- * Tjänstekörningsreduktion:
- * - Om bilen körs minst 3000 mil i tjänsten per år → 25% reduktion på grundbeloppet
- *
- * Miljöbilsreduktioner:
- * - ELBILAR: Reduktion med 10 000 kr/år (max 50% av beräknat förmånsvärde)
- * - LADDHYBRIDER: Reduktion beroende på elektrisk räckvidd
+ * Förmånsvärde = prisbasbeloppsdel 0,29 × 59 200 = 17 168 kr
+ *              + räntedel (70 % × SLR 2,55 % + 1 %) = 2,785 % × förmånsgrundande pris
+ *              + prisdel 13 % × förmånsgrundande pris
+ *              + fordonsskatt
+ * Vid minst 3 000 tjänstemil per år sätts värdet ned till 75 %.
+ * Delbeloppen avrundas nedåt till hela kronor, som i Skatteverkets beräkning.
  *
  * Källa: https://www.skatteverket.se/privat/skatter/beloppochprocent/2026.4.1522bf3f19aea8075ba21.html
  */
+export interface BenefitValueBreakdown {
+  listPrice: number // nybilspris + extrautrustning
+  priceReduction: number // schablonnedsättning
+  taxablePrice: number // förmånsgrundande pris
+  baseAmount: number // prisbasbeloppsdel
+  interestPart: number // räntedel
+  pricePart: number // prisdel
+  vehicleTax: number
+  fullValue: number // före eventuell tjänstekörningsnedsättning
+  serviceMilesReduction: boolean
+  total: number
+}
+
+export function calculateBenefitValueBreakdown(
+  purchasePrice: number,
+  isElectric: boolean = false,
+  isPluginHybrid: boolean = false,
+  inTrafficFromJuly2022: boolean = true,
+  vehicleTax: number = 0,
+  extraEquipment: number = 0,
+  serviceMilesPerYear: number = 0
+): BenefitValueBreakdown {
+  const listPrice = Math.max(0, purchasePrice) + Math.max(0, extraEquipment)
+
+  let priceReduction = 0
+  if (inTrafficFromJuly2022) {
+    if (isElectric) priceReduction = ELECTRIC_PRICE_REDUCTION
+    else if (isPluginHybrid) priceReduction = PLUGIN_HYBRID_PRICE_REDUCTION
+    priceReduction = Math.min(priceReduction, Math.floor(listPrice * MAX_PRICE_REDUCTION_SHARE))
+  }
+  const taxablePrice = listPrice - priceReduction
+
+  // Heltalsaritmetik så att avrundningen nedåt blir densamma som Skatteverkets
+  const interestPart = Math.floor((taxablePrice * INTEREST_RATE_PER_100000) / 100000)
+  const pricePart = Math.floor((taxablePrice * PRICE_PART_PERCENT) / 100)
+  const tax = Math.max(0, Math.floor(vehicleTax))
+
+  const fullValue = BENEFIT_BASE_AMOUNT + interestPart + pricePart + tax
+  const serviceMilesReduction = serviceMilesPerYear >= SERVICE_MILES_THRESHOLD
+  const total = serviceMilesReduction ? Math.floor(fullValue * SERVICE_MILES_FACTOR) : fullValue
+
+  return {
+    listPrice,
+    priceReduction,
+    taxablePrice,
+    baseAmount: BENEFIT_BASE_AMOUNT,
+    interestPart,
+    pricePart,
+    vehicleTax: tax,
+    fullValue,
+    serviceMilesReduction,
+    total,
+  }
+}
+
 export function calculateBenefitValue(
   purchasePrice: number,
   isElectric: boolean = false,
   isPluginHybrid: boolean = false,
-  electricRange?: number, // Elektrisk räckvidd i km (för laddhybrider)
-  registeredAfterJuly2022: boolean = true, // Antar nyare bil som default
-  vehicleTax: number = 5328, // Default = löpande kostnader
-  extraEquipment: number = 0, // Extrautrustning
-  serviceMilesPerYear: number = 500 // Tjänstekörning mil/år (default 500 = INGEN reduktion)
+  inTrafficFromJuly2022: boolean = true,
+  vehicleTax: number = 0,
+  extraEquipment: number = 0,
+  serviceMilesPerYear: number = 0
 ): number {
-  if (purchasePrice <= 0) {
-    return 0
-  }
-
-  // Steg 1: Beräkna grundbelopp (med eventuell tjänstekörningsreduktion)
-  let grundbelopp = BENEFIT_BASE_AMOUNT // 17 168 kr
-  
-  // Om bilen körs minst 3000 mil i tjänsten → 25% reduktion på grundbeloppet
-  const hasServiceMileReduction = serviceMilesPerYear >= 3000
-  if (hasServiceMileReduction) {
-    grundbelopp = grundbelopp * 0.75 // 25% reduktion
-  }
-
-  // Steg 2: Beräkna baserat på pris + extrautrustning
-  const totalPrice = purchasePrice + extraEquipment
-  const percentOfPrice = totalPrice * PERCENT_OF_PRICE // 13% av totalpris
-  const interestComponent = totalPrice * INTEREST_RATE_FACTOR // Räntedel
-  
-  // Steg 3: Lägg till fordonsskatt eller löpande kostnader
-  let taxOrRunningCosts = 0
-  if (registeredAfterJuly2022) {
-    // Bilar registrerade efter 1 juli 2022: Använd faktisk fordonsskatt
-    taxOrRunningCosts = vehicleTax
-  } else {
-    // Äldre bilar: Använd schablonbelopp för löpande kostnader
-    taxOrRunningCosts = RUNNING_COSTS // 5 328 kr
-  }
-  
-  let benefitValue = grundbelopp + percentOfPrice + interestComponent + taxOrRunningCosts
-
-  // Steg 4: Tillämpa miljöbilsreduktion
-  if (isElectric) {
-    // Elbil: Reduktion 10 000 kr/år, max 50% av förmånsvärdet
-    const maxReduction = benefitValue * MAX_REDUCTION_PERCENTAGE
-    const reduction = Math.min(ELECTRIC_CAR_REDUCTION_PER_YEAR, maxReduction)
-    benefitValue = benefitValue - reduction
-  } else if (isPluginHybrid) {
-    // Laddhybrid: Reduktion beroende på elektrisk räckvidd
-    // Förenklad beräkning: ca 50% av elbilsreduktionen om ingen räckvidd angiven
-    // TODO: Implementera exakt beräkning baserat på elektrisk räckvidd
-    const hybridReduction = electricRange 
-      ? calculatePluginHybridReduction(electricRange, benefitValue)
-      : Math.min(ELECTRIC_CAR_REDUCTION_PER_YEAR * 0.5, benefitValue * MAX_REDUCTION_PERCENTAGE)
-    
-    benefitValue = benefitValue - hybridReduction
-  }
-
-  return Math.round(benefitValue)
-}
-
-/**
- * Beräknar reduktion för laddhybrid baserat på elektrisk räckvidd
- * Exakt formel från Skatteverket saknas i denna implementation
- */
-function calculatePluginHybridReduction(electricRange: number, baseBenefitValue: number): number {
-  // Förenklad approximation - ju längre räckvidd, desto högre reduktion
-  // Räckvidd > 60 km: närmare elbilsreduktion
-  // Räckvidd < 30 km: lägre reduktion
-  
-  if (electricRange >= 60) {
-    return Math.min(ELECTRIC_CAR_REDUCTION_PER_YEAR * 0.8, baseBenefitValue * MAX_REDUCTION_PERCENTAGE)
-  } else if (electricRange >= 45) {
-    return Math.min(ELECTRIC_CAR_REDUCTION_PER_YEAR * 0.6, baseBenefitValue * MAX_REDUCTION_PERCENTAGE)
-  } else if (electricRange >= 30) {
-    return Math.min(ELECTRIC_CAR_REDUCTION_PER_YEAR * 0.4, baseBenefitValue * MAX_REDUCTION_PERCENTAGE)
-  } else {
-    return Math.min(ELECTRIC_CAR_REDUCTION_PER_YEAR * 0.2, baseBenefitValue * MAX_REDUCTION_PERCENTAGE)
-  }
+  if (purchasePrice <= 0) return 0
+  return calculateBenefitValueBreakdown(
+    purchasePrice,
+    isElectric,
+    isPluginHybrid,
+    inTrafficFromJuly2022,
+    vehicleTax,
+    extraEquipment,
+    serviceMilesPerYear
+  ).total
 }
 
 /**
@@ -439,11 +428,10 @@ export function calculateCarMetrics(car: CarInput, marginalTaxRate: number = MAR
     car.purchasePrice,
     car.isElectric || false,
     car.isPluginHybrid || false,
-    car.electricRange,
     car.registeredAfterJuly2022 !== undefined ? car.registeredAfterJuly2022 : true,
-    car.vehicleTax || 5328,
+    car.vehicleTax ?? 0,
     car.extraEquipment || 0,
-    car.serviceMiles || 500
+    car.serviceMiles || 0
   )
   
   const benefitValuePerMonth = Math.round(benefitValue / 12)

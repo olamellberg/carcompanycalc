@@ -70,7 +70,7 @@ export function mapCarInputToRowData(carInput: CarInput): Omit<CarRow, 'id' | 'c
     insurance_included_in_leasing: carInput.insuranceIncludedInLeasing || false,
     maintenance_included_in_leasing: carInput.maintenanceIncludedInLeasing || false,
     registered_after_july_2022: carInput.registeredAfterJuly2022 !== undefined ? carInput.registeredAfterJuly2022 : true,
-    vehicle_tax: carInput.vehicleTax || 5292,
+    vehicle_tax: carInput.vehicleTax ?? null,
     extra_equipment: carInput.extraEquipment || 0,
     electric_range: carInput.electricRange || null,
   }
