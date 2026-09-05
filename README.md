@@ -82,17 +82,23 @@ Alla formler finns i `src/lib/calculations.ts` med tester i `calculations.test.t
 ```
 src/
 ├── components/
-│   ├── AuthSection.tsx     # Magic link-inloggning
+│   ├── ui/
+│   │   ├── Dialog.tsx      # Nativ <dialog> som modal + ConfirmDialog
+│   │   ├── Field.tsx       # Field, TextInput (med enhet), Select
+│   │   └── Tooltip.tsx     # Tooltip vid hover/fokus, positioneras i portal
+│   ├── AuthSection.tsx     # Lagringsstatus och magic link-inloggning
 │   ├── CarModal.tsx        # Lägg till / redigera bil, bilsökning
-│   ├── CarTable.tsx        # Sorterbar jämförelsetabell
-│   └── GlobalSettings.tsx  # Bruttolön och körsträcka
+│   ├── CarTable.tsx        # Jämförelsetabell med kvitto-tooltips, kortvy på mobil
+│   └── GlobalSettings.tsx  # Bruttolön, körsträcka och marginalskatt
 ├── lib/
 │   ├── calculations.ts     # Alla beräkningar (förmånsvärde, RAM, leasing)
 │   ├── calculations.test.ts
 │   ├── carSearchApi.ts     # Skatteverkets RowStore-API
+│   ├── format.ts           # Svensk talformatering
 │   ├── storage.ts          # localStorage / Supabase-lagring
 │   ├── auth.ts
 │   └── supabase.ts
+├── index.css               # Designtokens (B3-palett), komponentstilar
 └── App.tsx
 ```
 

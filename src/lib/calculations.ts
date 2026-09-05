@@ -258,7 +258,22 @@ export function calculateTCOPrivate(
  * - Arbetsgivaravgifter på förmånsvärdet (31,42% - obligatoriskt)
  * - NOTE: B3 ger INGEN skatteersättning - anställd betalar förmånsskatten själv
  */
-export function calculateTotalCostFromRAM(
+export interface RamCostBreakdown {
+  /** Leasing (efter momslyft) eller värdeminskning vid köp, kr/år */
+  operating: number
+  isLeasing: boolean
+  halfVatLifted: boolean
+  insurance: number
+  maintenance: number
+  vehicleTax: number
+  employerFees: number
+  total: number
+}
+
+/**
+ * Delposterna i RAM-kostnaden (kr/år). Summan är det calculateTotalCostFromRAM returnerar.
+ */
+export function calculateRamCostBreakdown(
   purchasePrice: number,
   benefitValue: number,
   annualKm: number = AVERAGE_ANNUAL_KM,
@@ -269,74 +284,86 @@ export function calculateTotalCostFromRAM(
   isPluginHybrid: boolean = false,
   insuranceIncludedInLeasing: boolean = false,
   maintenanceIncludedInLeasing: boolean = false
-): number {
-  // 1. Car operating costs that BELASTAR RAMEN (enligt C11)
-  // Note: Drivmedel belastar INTE ramen - det hanteras via körjournal
-  
-  let carOperatingCosts = 0
-  
-  if (isLeasing && annualLeasingCost > 0) {
-    // Leasing kostnad
-    // Moms: B3 får lyfta halva momsen (om >= 100 tjänstemil/år)
-    // Vid < 100 tjänstemil/år → ingen moms lyfts
-    const serviceMilesPerYear = serviceMiles || annualKm / 10 // Convert km to mil
-    const canLiftHalfVAT = serviceMilesPerYear >= 100
-    
-    if (canLiftHalfVAT) {
-      // B3 får lyfta halva momsen, så ramen belastas med 90% av leasingkostnaden
-      // Leasingkostnad inkl. 25% moms = X
-      // Total moms = X * 0.2 (eftersom X / 1.25 * 0.25 = X * 0.2)
-      // Halva momsen = X * 0.1
-      // Ramen belastas: X - (X * 0.1) = X * 0.9
-      carOperatingCosts = annualLeasingCost * 0.9
-    } else {
-      // Ingen moms lyfts, så ramen belastas med full leasing kostnad inkl. moms
-      carOperatingCosts = annualLeasingCost
-    }
+): RamCostBreakdown {
+  // 1. Driftkostnader som belastar ramen (C11). Drivmedel ingår inte – det hanteras via körjournal.
+  const leasing = isLeasing && annualLeasingCost > 0
+  let operating: number
+  let halfVatLifted = false
+
+  if (leasing) {
+    // B3 får lyfta halva momsen om >= 100 tjänstemil/år. Leasing inkl. 25 % moms = X,
+    // halva momsen = X × 0,1, så ramen belastas med X × 0,9. Annars hela kostnaden.
+    const serviceMilesPerYear = serviceMiles || annualKm / 10
+    halfVatLifted = serviceMilesPerYear >= 100
+    operating = halfVatLifted ? annualLeasingCost * 0.9 : annualLeasingCost
   } else {
-    // Vid köp: depreciation (company asset, typically 20% per year over 5 years)
-    carOperatingCosts = purchasePrice * 0.20
+    // Vid köp: värdeminskning 20 % per år (5 års avskrivning)
+    operating = purchasePrice * 0.20
   }
-  
-  // Insurance (estimate 1.5% of purchase price per year)
-  // Belastar ramen enligt C11 (om inte inkluderat i leasing)
-  const annualInsurance = (!isLeasing || !insuranceIncludedInLeasing) 
-    ? purchasePrice * 0.015 
-    : 0
-  
-  // Maintenance and service (estimate 0.5% of purchase price per year)
-  // Belastar ramen enligt C11 (underhåll) (om inte inkluderat i leasing)
-  const annualMaintenance = (!isLeasing || !maintenanceIncludedInLeasing)
-    ? purchasePrice * 0.005
-    : 0
-  
-  // Vehicle tax - differentiated by car type
-  // Belastar ramen enligt C11 (skatt)
-  let annualTax = 6000 // Default för bensin/diesel
-  if (isElectric) {
-    annualTax = 0 // Elbilar har noll fordonsskatt i 5 år
-  } else if (isPluginHybrid) {
-    annualTax = 3000 // Reducerad skatt för laddhybrider
+
+  // Försäkring 1,5 % och underhåll 0,5 % av inköpspriset per år, om de inte ingår i leasingen
+  const insurance = (!isLeasing || !insuranceIncludedInLeasing) ? purchasePrice * 0.015 : 0
+  const maintenance = (!isLeasing || !maintenanceIncludedInLeasing) ? purchasePrice * 0.005 : 0
+
+  // Fordonsskatt: elbil 0 kr (första 5 åren), laddhybrid reducerad, annars ca 6 000 kr/år
+  const vehicleTax = isElectric ? 0 : isPluginHybrid ? 3000 : 6000
+
+  // 2. Arbetsgivaravgifter på förmånsvärdet (31,42 %). B3 ger ingen skatteersättning,
+  // den anställde betalar förmånsskatten själv, så ingen sådan post ingår.
+  const employerFees = benefitValue * EMPLOYER_SOCIAL_FEE
+
+  return {
+    operating,
+    isLeasing: leasing,
+    halfVatLifted,
+    insurance,
+    maintenance,
+    vehicleTax,
+    employerFees,
+    total: Math.round(operating + insurance + maintenance + vehicleTax + employerFees),
   }
-  
-  // NOTE: Drivmedel belastar INTE ramen enligt C11
-  // Det hanteras via körjournal istället
-  
-  carOperatingCosts += annualInsurance + annualMaintenance + annualTax
-  
-  // 2. Arbetsgivaravgifter på förmånsvärdet (obligatoriskt, 31.42%)
-  // Förmånsvärdet är underlag för arbetsgivaravgifter oavsett om skatteersättning ges
-  const employerSocialFees = benefitValue * EMPLOYER_SOCIAL_FEE
+}
 
-  // NOTE: B3 kompenserar INTE den anställde för skatten på förmånsvärdet.
-  // Den anställde betalar förmånsskatten själv via löneavdrag.
-  // Därför ingår ingen skatteersättning i RAM-kostnaden.
+export function calculateTotalCostFromRAM(
+  purchasePrice: number,
+  benefitValue: number,
+  annualKm: number = AVERAGE_ANNUAL_KM,
+  isLeasing: boolean = false,
+  annualLeasingCost: number = 0,
+  serviceMiles: number = 0,
+  isElectric: boolean = false,
+  isPluginHybrid: boolean = false,
+  insuranceIncludedInLeasing: boolean = false,
+  maintenanceIncludedInLeasing: boolean = false
+): number {
+  return calculateRamCostBreakdown(
+    purchasePrice,
+    benefitValue,
+    annualKm,
+    isLeasing,
+    annualLeasingCost,
+    serviceMiles,
+    isElectric,
+    isPluginHybrid,
+    insuranceIncludedInLeasing,
+    maintenanceIncludedInLeasing
+  ).total
+}
 
-  // Total annual cost from RAM perspective
-  // This is what belastar ramen enligt B16 och C11
-  const totalCost = carOperatingCosts + employerSocialFees
-  
-  return Math.round(totalCost)
+/** RAM-kostnadens delposter för en bil, med samma standardvärden som calculateCarMetrics. */
+export function ramCostBreakdownFor(car: CarInput): RamCostBreakdown {
+  return calculateRamCostBreakdown(
+    car.purchasePrice,
+    car.benefitValue,
+    car.annualKm || AVERAGE_ANNUAL_KM,
+    car.isLeasing || false,
+    car.annualLeasingCost || 0,
+    car.serviceMiles || 3000,
+    car.isElectric || false,
+    car.isPluginHybrid || false,
+    car.insuranceIncludedInLeasing || false,
+    car.maintenanceIncludedInLeasing || false
+  )
 }
 
 /**
@@ -425,19 +452,7 @@ export function calculateCarMetrics(car: CarInput, marginalTaxRate: number = MAR
   const isPluginHybrid = car.isPluginHybrid || false
   
   const tcoPrivate = calculateTCOPrivate(car.purchasePrice, annualKm, isElectric, isPluginHybrid)
-  const totalCostFromRAM = calculateTotalCostFromRAM(
-    car.purchasePrice,
-    benefitValue,
-    annualKm,
-    car.isLeasing || false,
-    car.annualLeasingCost || 0,
-    car.serviceMiles || 3000,
-    isElectric,
-    isPluginHybrid,
-    car.insuranceIncludedInLeasing || false,
-    car.maintenanceIncludedInLeasing || false
-  )
-  // Beräkna lönemotsvarande baserat på leasingkostnad och förmånsvärde
+  const totalCostFromRAM = ramCostBreakdownFor({ ...car, benefitValue, annualKm }).total  // Beräkna lönemotsvarande baserat på leasingkostnad och förmånsvärde
   const annualLeasingForCalc = car.annualLeasingCost || (car.purchasePrice * 0.20) // Fallback till 20% avskrivning
   const salaryEquivalent = calculateSalaryEquivalent(annualLeasingForCalc, benefitValue, marginalTaxRate)
   

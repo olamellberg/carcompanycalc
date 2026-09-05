@@ -29,3 +29,6 @@ npm-debug.log*
 
 # Cursor
 .cursor/
+
+# Playwright MCP screenshots
+.playwright-mcp/

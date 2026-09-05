@@ -1,27 +1,66 @@
-import { useState } from 'react'
-import { LogIn, LogOut, Mail, Cloud, HardDrive } from 'lucide-react'
-import { signInWithMagicLink, signOut } from '../lib/auth'
+import { useState, type FormEvent } from 'react'
+import { Cloud, HardDrive, LogOut, Mail } from 'lucide-react'
 import type { User } from '@supabase/supabase-js'
+import { signInWithMagicLink, signOut } from '../lib/auth'
+import { Dialog } from './ui/Dialog'
+import { Field, TextInput } from './ui/Field'
 
 interface AuthSectionProps {
   user: User | null
   onSignOut: () => void
 }
 
+/** Lagringsstatus och inloggning i sidhuvudet. */
 export default function AuthSection({ user, onSignOut }: AuthSectionProps) {
+  const [loginOpen, setLoginOpen] = useState(false)
+
+  const handleSignOut = async () => {
+    await signOut()
+    onSignOut()
+  }
+
+  if (user) {
+    return (
+      <div className="flex items-center gap-3 text-sm">
+        <span className="hidden items-center gap-1.5 text-white/70 sm:inline-flex">
+          <Cloud size={15} className="text-accent" aria-hidden="true" />
+          <span className="max-w-[16rem] truncate">{user.email}</span>
+        </span>
+        <button type="button" onClick={handleSignOut} className="btn btn-sm btn-inverse">
+          <LogOut size={15} aria-hidden="true" />
+          Logga ut
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex items-center gap-3 text-sm">
+      <span className="hidden items-center gap-1.5 text-white/60 md:inline-flex">
+        <HardDrive size={15} aria-hidden="true" />
+        Sparas i webbläsaren
+      </span>
+      <button type="button" onClick={() => setLoginOpen(true)} className="btn btn-sm btn-inverse">
+        Logga in
+      </button>
+      {loginOpen && <LoginDialog onClose={() => setLoginOpen(false)} />}
+    </div>
+  )
+}
+
+function LoginDialog({ onClose }: { onClose: () => void }) {
   const [email, setEmail] = useState('')
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
   const [errorMessage, setErrorMessage] = useState('')
 
-  const handleSendMagicLink = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    if (!email.trim()) return
+    const address = email.trim()
+    if (!address) return
 
     setStatus('sending')
     setErrorMessage('')
-
-    const { error } = await signInWithMagicLink(email.trim())
-
+    const { error } = await signInWithMagicLink(address)
     if (error) {
       setStatus('error')
       setErrorMessage(error.message)
@@ -30,78 +69,70 @@ export default function AuthSection({ user, onSignOut }: AuthSectionProps) {
     }
   }
 
-  const handleSignOut = async () => {
-    await signOut()
-    setStatus('idle')
-    setEmail('')
-    onSignOut()
-  }
-
-  // Inloggad
-  if (user) {
-    return (
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-1.5 text-sm text-gray-500">
-          <Cloud size={14} className="text-b3-turquoise" />
-          <span className="hidden sm:inline">{user.email}</span>
-        </div>
-        <button
-          onClick={handleSignOut}
-          className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 transition-colors"
-        >
-          <LogOut size={14} />
-          <span className="hidden sm:inline">Logga ut</span>
-        </button>
-      </div>
-    )
-  }
-
-  // Magic link skickad
   if (status === 'sent') {
     return (
-      <div className="flex items-center gap-2 text-sm">
-        <Mail size={14} className="text-b3-turquoise" />
-        <span className="text-gray-600">
-          Kolla din inkorg! Klicka pa lanken vi skickade till <strong>{email}</strong>
-        </span>
-        <button
-          onClick={() => { setStatus('idle'); setEmail('') }}
-          className="text-gray-400 hover:text-gray-600 underline ml-1"
-        >
-          Avbryt
-        </button>
-      </div>
+      <Dialog
+        title="Länk skickad"
+        onClose={onClose}
+        size="sm"
+        footer={
+          <button type="button" className="btn btn-primary" onClick={onClose}>
+            Stäng
+          </button>
+        }
+      >
+        <div className="flex gap-3">
+          <Mail size={20} className="mt-0.5 shrink-0 text-accent-ink" aria-hidden="true" />
+          <p className="text-ink-soft">
+            Öppna mejlet till <strong className="font-medium text-ink">{email.trim()}</strong> och klicka på
+            länken. Du loggas in här i webbläsaren.
+          </p>
+        </div>
+      </Dialog>
     )
   }
 
-  // Ej inloggad - visa formulär
   return (
-    <div className="flex items-center gap-2">
-      <div className="flex items-center gap-1.5 text-sm text-gray-400">
-        <HardDrive size={14} />
-        <span className="hidden lg:inline">Sparas lokalt</span>
-      </div>
-      <div className="w-px h-4 bg-gray-200 mx-1" />
-      <form onSubmit={handleSendMagicLink} className="flex items-center gap-2">
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="din@email.se"
-          className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-b3-turquoise focus:border-transparent w-40 sm:w-48"
-        />
-        <button
-          type="submit"
-          disabled={status === 'sending' || !email.trim()}
-          className="flex items-center gap-1.5 bg-b3-turquoise hover:bg-b3-turquoise-dark disabled:opacity-50 text-white px-3 py-1.5 rounded-lg transition-all text-sm font-medium whitespace-nowrap"
+    <Dialog
+      title="Logga in"
+      description="Spara dina bilar på ett konto och nå dem från andra enheter."
+      onClose={onClose}
+      size="sm"
+      footer={
+        <>
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            Avbryt
+          </button>
+          <button
+            type="submit"
+            form="login-form"
+            className="btn btn-primary"
+            disabled={status === 'sending' || !email.trim()}
+          >
+            {status === 'sending' ? 'Skickar…' : 'Skicka inloggningslänk'}
+          </button>
+        </>
+      }
+    >
+      <form id="login-form" onSubmit={handleSubmit} noValidate>
+        <Field
+          label="E-postadress"
+          htmlFor="login-email"
+          hint="Vi mejlar en inloggningslänk. Inget lösenord behövs."
+          error={status === 'error' ? errorMessage : undefined}
         >
-          <LogIn size={14} />
-          {status === 'sending' ? 'Skickar...' : 'Logga in'}
-        </button>
+          <TextInput
+            id="login-email"
+            type="email"
+            autoComplete="email"
+            data-autofocus
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="fornamn.efternamn@b3.se"
+            invalid={status === 'error'}
+          />
+        </Field>
       </form>
-      {status === 'error' && (
-        <span className="text-red-500 text-xs">{errorMessage}</span>
-      )}
-    </div>
+    </Dialog>
   )
 }

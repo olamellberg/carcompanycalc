@@ -1,28 +1,123 @@
-import { Edit2, Trash2, ArrowUp, ArrowDown, HelpCircle } from 'lucide-react'
-import { type CarCalculations } from '../lib/calculations'
-import { useState, useRef } from 'react'
+import type { ReactNode } from 'react'
+import { ArrowDown, ArrowUp, HelpCircle, Pencil, Trash2 } from 'lucide-react'
+import { ramCostBreakdownFor, type CarCalculations } from '../lib/calculations'
+import { fmtDec, fmtInt, fmtKr, fmtPct } from '../lib/format'
+import { Tooltip } from './ui/Tooltip'
+
+const EMPLOYER_FEE = 0.3142
+
+type SortKey = keyof CarCalculations
 
 interface CarTableProps {
   cars: CarCalculations[]
-  sortField: keyof CarCalculations | null
+  sortField: SortKey | null
   sortDirection: 'asc' | 'desc'
-  onSort: (field: keyof CarCalculations) => void
+  onSort: (field: SortKey) => void
   onEdit: (car: CarCalculations) => void
-  onDelete: (id: string) => void
+  onDelete: (car: CarCalculations) => void
   marginalTaxRate: number // Marginalskatt från personliga inställningar
 }
 
-// Förklaringar för varje kolumn
-const columnDescriptions: Record<string, string> = {
-  model: 'Bilens märke och modell från Skatteverkets databas.',
-  purchasePrice: 'Bilens nybilspris i kr. Används som grund för beräkning av förmånsvärde och leasingkostnad.',
-  annualLeasingCost: 'Månatlig leasingkostnad beräknad med annuitetsmetoden.\n• Baseras på inköpspris, ränta och restvärde\n• Inkluderar moms (halva momsen kan lyftas vid ≥100 tjänstemil)',
-  benefitValue: 'Förmånsvärde per år enligt Skatteverkets regler 2026:\n• Grundbelopp: 0,29 × prisbasbelopp (59 200 kr)\n• + 13% av nybilspriset\n• + 2,785% (räntedel) × nybilspriset\n• + Fordonsskatt\n• - Miljöbilsreduktion\n• - 25% om ≥3000 tjänstemil/år',
-  benefitTaxCost: 'Vad du betalar i skatt på förmånsvärdet per månad.\n\nBeräkning:\n• Förmånsvärde (år) ÷ 12 × din marginalskatt\n\nDetta är den faktiska kostnaden som dras från din nettolön varje månad för att ha förmånsbilen.',
-  totalCostFromRAM: 'Total kostnad från RAM per år / månad:\n• Leasingkostnad\n• + Arbetsgivaravgifter på förmånsvärde (31,42%)\n• + Ev. driftskostnader som ej ingår i leasing',
-  salaryEquivalent: 'Motsvarande nettolön om pengarna betalats ut som lön istället:\n\n• Arbetsgivarens kostnad = Leasing + arbetsgivaravgifter\n• Bruttolön = Kostnad ÷ 1,3142\n• Nettolön = Bruttolön × (1 - marginalskatt)',
-  costPerMile: 'Total privat kostnad per mil:\n• (Motsv. Nettolön + Förmånskostnad) ÷ antal mil\n• Inkluderar både förlorad nettolön OCH skatten du betalar på förmånsvärdet\n• Visar den faktiska totalkostnaden per mil för dig privat',
-  totalPrivateCost: 'Din totala privata månadskostnad för förmånsbilen.\n\nBeräkning:\n• Motsv. nettolön (mån) + Förmånskostnad (mån)\n\nDetta är direkt jämförbart med en privatleasing-kostnad.\n• Motsv. nettolön = vad du "förlorar" i lön\n• Förmånskostnad = skatten som dras på lönebeskedet'
+// --- Kvitton: beräkningsuppställningar som visas i tooltip per cell ---
+
+interface ReceiptLine {
+  label: string
+  value?: string
+  kind?: 'sum' | 'note'
+}
+
+interface Receipt {
+  title: string
+  lines: ReceiptLine[]
+}
+
+function ReceiptView({ receipt }: { receipt: Receipt }) {
+  return (
+    <>
+      <div className="tip-title">{receipt.title}</div>
+      {receipt.lines.map((line, i) =>
+        line.kind === 'note' ? (
+          <p key={i} className="tip-note">
+            {line.label}
+          </p>
+        ) : (
+          <div key={i} className={`tip-row${line.kind === 'sum' ? ' is-sum' : ''}`}>
+            <span>{line.label}</span>
+            <span>{line.value}</span>
+          </div>
+        )
+      )}
+    </>
+  )
+}
+
+function Help({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <Tooltip
+      label={`Förklaring: ${title}`}
+      className="icon-help"
+      content={
+        <>
+          <div className="tip-title">{title}</div>
+          {children}
+        </>
+      }
+    >
+      <HelpCircle size={14} aria-hidden="true" />
+    </Tooltip>
+  )
+}
+
+interface HeaderProps {
+  field: SortKey
+  label: string
+  unit?: string
+  help?: ReactNode
+  align?: 'left' | 'right'
+  className?: string
+  rowSpan?: number
+  sortField: SortKey | null
+  sortDirection: 'asc' | 'desc'
+  onSort: (field: SortKey) => void
+}
+
+function SortHeader({
+  field,
+  label,
+  unit,
+  help,
+  align = 'right',
+  className,
+  rowSpan,
+  sortField,
+  sortDirection,
+  onSort,
+}: HeaderProps) {
+  const active = sortField === field
+  return (
+    <th
+      scope="col"
+      rowSpan={rowSpan}
+      className={className}
+      aria-sort={active ? (sortDirection === 'asc' ? 'ascending' : 'descending') : undefined}
+    >
+      <div className={`inline-flex flex-col ${align === 'left' ? 'items-start' : 'items-end'}`}>
+        <span className="inline-flex items-center gap-1">
+          <button type="button" className="th-btn" onClick={() => onSort(field)}>
+            {label}
+            {active &&
+              (sortDirection === 'asc' ? (
+                <ArrowUp size={14} aria-hidden="true" />
+              ) : (
+                <ArrowDown size={14} aria-hidden="true" />
+              ))}
+          </button>
+          {help && <Help title={label}>{help}</Help>}
+        </span>
+        {unit && <span className="text-2xs font-normal text-ink-faint">{unit}</span>}
+      </div>
+    </th>
+  )
 }
 
 export default function CarTable({
@@ -32,363 +127,314 @@ export default function CarTable({
   onSort,
   onEdit,
   onDelete,
-  marginalTaxRate
+  marginalTaxRate,
 }: CarTableProps) {
-  const [activeTooltip, setActiveTooltip] = useState<string | null>(null)
+  const taxPct = fmtPct(marginalTaxRate)
+  const netPct = fmtPct(1 - marginalTaxRate)
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('sv-SE', {
-      style: 'currency',
-      currency: 'SEK',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(value)
+  const benefitTaxPerMonth = (car: CarCalculations) => Math.round((car.benefitValue / 12) * marginalTaxRate)
+  const netSalaryPerMonth = (car: CarCalculations) => Math.round(car.salaryEquivalent / 12)
+  const totalPerMonth = (car: CarCalculations) => netSalaryPerMonth(car) + benefitTaxPerMonth(car)
+
+  const totals = cars.map(totalPerMonth)
+  const maxTotal = Math.max(...totals, 1)
+  const lowestTotal = Math.min(...totals)
+
+  function ramReceipt(car: CarCalculations): Receipt {
+    const b = ramCostBreakdownFor(car)
+    const lines: ReceiptLine[] = [
+      {
+        label: b.isLeasing
+          ? b.halfVatLifted
+            ? 'Leasing efter momslyft (90 %)'
+            : 'Leasing inklusive moms'
+          : 'Värdeminskning 20 % vid köp',
+        value: fmtKr(b.operating),
+      },
+    ]
+    if (b.insurance > 0) lines.push({ label: 'Försäkring 1,5 % av priset', value: fmtKr(b.insurance) })
+    if (b.maintenance > 0) lines.push({ label: 'Underhåll 0,5 % av priset', value: fmtKr(b.maintenance) })
+    lines.push(
+      { label: 'Fordonsskatt', value: fmtKr(b.vehicleTax) },
+      { label: 'Arbetsgivaravgift 31,42 % på förmånsvärdet', value: fmtKr(b.employerFees) },
+      { label: 'Per år', value: fmtKr(b.total), kind: 'sum' },
+      { label: 'Per månad', value: fmtKr(b.total / 12), kind: 'sum' },
+      { label: 'Drivmedel belastar inte ramen utan hanteras via körjournal.', kind: 'note' }
+    )
+    return { title: 'RAM-kostnad', lines }
   }
 
-  const formatNumber = (value: number, decimals: number = 0) => {
-    return new Intl.NumberFormat('sv-SE', {
-      minimumFractionDigits: decimals,
-      maximumFractionDigits: decimals
-    }).format(value)
-  }
-
-  // Beräkna månatlig skattekostnad på förmånsvärde
-  const calculateBenefitTaxCost = (benefitValue: number) => {
-    return Math.round((benefitValue / 12) * marginalTaxRate)
-  }
-
-  const fmt = (v: number) => Math.round(v).toLocaleString('sv-SE')
-  const fmtDec = (v: number, d: number = 2) => v.toLocaleString('sv-SE', { minimumFractionDigits: d, maximumFractionDigits: d })
-  const pct = (v: number) => `${Math.round(v * 100)}%`
-
-  // Generera beräkningsuppställning per kolumn
-  function getCalcBreakdown(car: CarCalculations, column: string): { label: string; lines: { text: string; bold?: boolean; separator?: boolean }[] } | null {
-    const annualLeasing = car.annualLeasingCost || 0
-    const benefitPerMonth = Math.round(car.benefitValue / 12)
-    const benefitTax = calculateBenefitTaxCost(car.benefitValue)
-    const monthlyNetSalary = Math.round(car.salaryEquivalent / 12)
-    const agAvgift = car.benefitValue * 0.3142
-
-    switch (column) {
-      case 'ramCost':
-        return {
-          label: 'RAM-kostnad',
-          lines: [
-            { text: `Leasingkostnad: ${fmt(annualLeasing)} kr/år` },
-            { text: `+ AG-avgifter: ${fmt(car.benefitValue)} × 31,42% = ${fmt(agAvgift)} kr/år` },
-            { text: '', separator: true },
-            { text: `= ${fmt(car.totalCostFromRAM)} kr/år`, bold: true },
-            { text: `= ${fmt(Math.round(car.totalCostFromRAM / 12))} kr/mån`, bold: true },
-          ]
-        }
-
-      case 'netSalary':
-        const totalEmployerCost = annualLeasing + agAvgift
-        const grossEquiv = totalEmployerCost / 1.3142
-        return {
-          label: 'Motsv. Nettolön',
-          lines: [
-            { text: `Arbetsgivarens kostnad:` },
-            { text: `  Leasing: ${fmt(annualLeasing)} kr/år` },
-            { text: `  + AG-avg på förmånsvärde: ${fmt(agAvgift)} kr/år` },
-            { text: `  = ${fmt(Math.round(totalEmployerCost))} kr/år` },
-            { text: '' , separator: true },
-            { text: `Bruttolön: ${fmt(Math.round(totalEmployerCost))} ÷ 1,3142 = ${fmt(Math.round(grossEquiv))} kr/år` },
-            { text: `Nettolön: ${fmt(Math.round(grossEquiv))} × (1 − ${pct(marginalTaxRate)}) = ${fmt(car.salaryEquivalent)} kr/år` },
-            { text: '', separator: true },
-            { text: `= ${fmt(Math.round(car.salaryEquivalent / 12))} kr/mån`, bold: true },
-          ]
-        }
-
-      case 'benefitTax':
-        return {
-          label: 'Förmånskostnad',
-          lines: [
-            { text: `Förmånsvärde: ${fmt(car.benefitValue)} kr/år` },
-            { text: `Per månad: ${fmt(car.benefitValue)} ÷ 12 = ${fmt(benefitPerMonth)} kr` },
-            { text: `× Marginalskatt: ${pct(marginalTaxRate)}` },
-            { text: '', separator: true },
-            { text: `= ${fmt(benefitPerMonth)} × ${pct(marginalTaxRate)} = ${fmt(benefitTax)} kr/mån`, bold: true },
-          ]
-        }
-
-      case 'totalPrivate':
-        return {
-          label: 'Total privat kostnad',
-          lines: [
-            { text: `Motsv. nettolön: ${fmt(monthlyNetSalary)} kr/mån` },
-            { text: `+ Förmånskostnad: ${fmt(benefitTax)} kr/mån` },
-            { text: '', separator: true },
-            { text: `= ${fmt(monthlyNetSalary + benefitTax)} kr/mån`, bold: true },
-            { text: `Jämförbart med privatleasing-kostnad` },
-          ]
-        }
-
-      case 'costPerMile': {
-        const annualMiles = (car.annualKm || 15000) / 10
-        const annualNetSalary = car.salaryEquivalent
-        const annualBenefitTax = car.benefitValue * marginalTaxRate
-        const totalAnnual = annualNetSalary + annualBenefitTax
-        return {
-          label: 'Kostnad per mil',
-          lines: [
-            { text: `Motsv. nettolön: ${fmt(annualNetSalary)} kr/år` },
-            { text: `+ Förmånskostnad: ${fmt(car.benefitValue)} × ${pct(marginalTaxRate)} = ${fmt(Math.round(annualBenefitTax))} kr/år` },
-            { text: `= Total privat kostnad: ${fmt(Math.round(totalAnnual))} kr/år` },
-            { text: '', separator: true },
-            { text: `Körsträcka: ${fmt(car.annualKm || 15000)} km ÷ 10 = ${fmt(annualMiles)} mil` },
-            { text: `${fmt(Math.round(totalAnnual))} ÷ ${fmt(annualMiles)} = ${fmtDec(car.costPerMile)} kr/mil`, bold: true },
-          ]
-        }
-      }
-
-      default:
-        return null
+  function netSalaryReceipt(car: CarCalculations): Receipt {
+    const annualLeasing = car.annualLeasingCost || car.purchasePrice * 0.2
+    const fees = car.benefitValue * EMPLOYER_FEE
+    const employerCost = annualLeasing + fees
+    const gross = employerCost / (1 + EMPLOYER_FEE)
+    return {
+      title: 'Nettolön istället',
+      lines: [
+        {
+          label: car.annualLeasingCost ? 'Leasing inklusive moms' : 'Värdeminskning 20 % vid köp',
+          value: fmtKr(annualLeasing),
+        },
+        { label: 'Arbetsgivaravgift 31,42 % på förmånsvärdet', value: fmtKr(fees) },
+        { label: 'Arbetsgivarens kostnad per år', value: fmtKr(employerCost), kind: 'sum' },
+        { label: 'Som bruttolön, delat med 1,3142', value: fmtKr(gross) },
+        { label: `Kvar efter ${taxPct} marginalskatt`, value: fmtKr(car.salaryEquivalent), kind: 'sum' },
+        { label: 'Per månad', value: fmtKr(car.salaryEquivalent / 12), kind: 'sum' },
+        { label: 'Så mycket nettolön hade pengarna gett om de betalats ut som lön.', kind: 'note' },
+      ],
     }
   }
 
-  // Tooltip-komponent som visar beräkning vid hover
-  const CalcTooltip = ({ car, column, children }: { car: CarCalculations; column: string; children: React.ReactNode }) => {
-    const [show, setShow] = useState(false)
-    const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
-    const ref = useRef<HTMLDivElement>(null)
-    const breakdown = getCalcBreakdown(car, column)
-
-    if (!breakdown) return <>{children}</>
-
-    return (
-      <div
-        ref={ref}
-        className="relative cursor-help"
-        onMouseEnter={() => {
-          setShow(true)
-          if (ref.current) {
-            const rect = ref.current.getBoundingClientRect()
-            setPos({ top: rect.top - 8, left: rect.left + rect.width / 2 })
-          }
-        }}
-        onMouseLeave={() => setShow(false)}
-      >
-        <span className="border-b border-dotted border-gray-400">{children}</span>
-        {show && pos && (
-          <div
-            className="fixed z-[9999] w-80 p-4 bg-gray-900 text-white text-xs rounded-xl shadow-2xl font-mono"
-            style={{
-              top: `${pos.top}px`,
-              left: `${pos.left}px`,
-              transform: 'translate(-50%, -100%)'
-            }}
-          >
-            <div className="font-bold mb-2 text-b3-turquoise text-sm font-sans">{breakdown.label}</div>
-            {breakdown.lines.map((line, i) =>
-              line.separator ? (
-                <div key={i} className="border-t border-gray-600 my-1" />
-              ) : (
-                <div key={i} className={line.bold ? 'font-bold text-white mt-1 text-sm' : 'text-gray-300'}>
-                  {line.text}
-                </div>
-              )
-            )}
-          </div>
-        )}
-      </div>
-    )
+  function benefitTaxReceipt(car: CarCalculations): Receipt {
+    return {
+      title: 'Förmånskostnad',
+      lines: [
+        { label: 'Förmånsvärde per år', value: fmtKr(car.benefitValue) },
+        { label: 'Per månad', value: fmtKr(car.benefitValue / 12) },
+        { label: `Skatt ${taxPct} per månad`, value: fmtKr(benefitTaxPerMonth(car)), kind: 'sum' },
+        { label: 'Dras från nettolönen varje månad.', kind: 'note' },
+      ],
+    }
   }
 
-  const SortButton = ({ field, label, customDescription }: { field: keyof CarCalculations; label: string; customDescription?: string }) => {
-    const isActive = sortField === field
-    const description = customDescription || columnDescriptions[field]
-    
-    return (
-      <div className="relative inline-flex items-center gap-1">
-        <button
-          onClick={() => onSort(field)}
-          className="flex items-center gap-1 hover:text-b3-turquoise transition-colors"
-        >
-          <span>{label}</span>
-          {isActive ? (
-            sortDirection === 'asc' ? (
-              <ArrowUp size={16} />
-            ) : (
-              <ArrowDown size={16} />
-            )
-          ) : (
-            <span className="w-4 h-4" />
-          )}
-        </button>
-        {description && (
-          <div 
-            className="relative"
-            onMouseEnter={() => setActiveTooltip(field)}
-            onMouseLeave={() => setActiveTooltip(null)}
-          >
-            <HelpCircle 
-              size={14} 
-              className="text-gray-400 hover:text-b3-turquoise cursor-help transition-colors" 
-            />
-            {activeTooltip === field && (
-              <div 
-                className="fixed z-[9999] w-80 p-4 bg-gray-900 text-white text-sm rounded-xl shadow-2xl whitespace-pre-line"
-                style={{
-                  top: '120px',
-                  left: '50%',
-                  transform: 'translateX(-50%)'
-                }}
-              >
-                <div className="font-bold mb-2 text-b3-turquoise text-base">{label}</div>
-                {description}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    )
+  function totalReceipt(car: CarCalculations): Receipt {
+    return {
+      title: 'Totalt för dig',
+      lines: [
+        { label: 'Nettolön istället', value: fmtKr(netSalaryPerMonth(car)) },
+        { label: 'Förmånskostnad', value: fmtKr(benefitTaxPerMonth(car)) },
+        { label: 'Per månad', value: fmtKr(totalPerMonth(car)), kind: 'sum' },
+        { label: 'Jämförbart med vad en privatleasing kostar per månad.', kind: 'note' },
+      ],
+    }
   }
 
-  // Label som visar tooltip för förmånskostnad
-  const BenefitTaxLabel = () => {
-    const description = columnDescriptions.benefitTaxCost
-    const label = `Förmånskostnad vid ${Math.round(marginalTaxRate * 100)}% skatt (mån)`
-    
-    return (
-      <div className="relative inline-flex items-center gap-1">
-        <span className="text-sm">{label}</span>
-        <div 
-          className="relative"
-          onMouseEnter={() => setActiveTooltip('benefitTaxCost')}
-          onMouseLeave={() => setActiveTooltip(null)}
-        >
-          <HelpCircle 
-            size={14} 
-            className="text-gray-400 hover:text-b3-turquoise cursor-help transition-colors" 
-          />
-          {activeTooltip === 'benefitTaxCost' && (
-            <div 
-              className="fixed z-[9999] w-80 p-4 bg-gray-900 text-white text-sm rounded-xl shadow-2xl whitespace-pre-line"
-              style={{
-                top: '120px',
-                left: '50%',
-                transform: 'translateX(-50%)'
-              }}
-            >
-              <div className="font-bold mb-2 text-b3-turquoise text-base">{label}</div>
-              {description}
-            </div>
-          )}
-        </div>
-      </div>
-    )
+  function perMileReceipt(car: CarCalculations): Receipt {
+    const annualKm = car.annualKm || 15000
+    const annualMiles = annualKm / 10
+    const annualBenefitTax = car.benefitValue * marginalTaxRate
+    const annualTotal = car.salaryEquivalent + annualBenefitTax
+    return {
+      title: 'Kostnad per mil',
+      lines: [
+        { label: 'Nettolön istället per år', value: fmtKr(car.salaryEquivalent) },
+        { label: `Förmånskostnad per år (${taxPct})`, value: fmtKr(annualBenefitTax) },
+        { label: 'Total privat kostnad per år', value: fmtKr(annualTotal), kind: 'sum' },
+        { label: 'Körsträcka', value: `${fmtInt(annualKm)} km = ${fmtInt(annualMiles)} mil` },
+        { label: 'Per mil', value: `${fmtDec(car.costPerMile)} kr`, kind: 'sum' },
+      ],
+    }
   }
+
+  const headerProps = { sortField, sortDirection, onSort }
 
   return (
-    <div className="overflow-x-auto overflow-y-visible">
-      <table className="w-full">
-        <thead>
-          <tr className="border-b-2 border-gray-200">
-            <th className="text-left py-3 px-4 font-semibold text-gray-700">
-              <SortButton field="model" label="Bilmodell" />
-            </th>
-            <th className="text-right py-3 px-4 font-semibold text-gray-700">
-              <SortButton field="purchasePrice" label="Inköpspris" />
-            </th>
-            <th className="text-right py-3 px-4 font-semibold text-gray-700">
-              <SortButton field="annualLeasingCost" label="Leasing (mån)" />
-            </th>
-            <th className="text-right py-3 px-4 font-semibold text-gray-700">
-              <SortButton field="totalCostFromRAM" label="RAM-kostnad (mån)" />
-            </th>
-            <th className="text-right py-3 px-4 font-semibold text-gray-700">
-              <SortButton field="salaryEquivalent" label="Motsv. Nettolön (mån)" />
-            </th>
-            <th className="text-right py-3 px-4 font-semibold text-gray-700">
-              <BenefitTaxLabel />
-            </th>
-            <th className="text-right py-3 px-4 font-semibold text-gray-700">
-              <SortButton field="costPerMile" label="Total privat kostnad" customDescription={columnDescriptions.totalPrivateCost} />
-            </th>
-            <th className="text-right py-3 px-4 font-semibold text-gray-700">
-              <SortButton field="costPerMile" label="Kostnad/mil" />
-            </th>
-            <th className="text-center py-3 px-4 font-semibold text-gray-700">Åtgärder</th>
-          </tr>
-        </thead>
-        <tbody>
-          {cars.map((car) => (
-            <tr
-              key={car.id || Math.random()}
-              className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
-            >
-              <td className="py-3 px-4">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-gray-900">{car.model}</span>
-                  {car.isElectric && (
-                    <span className="text-xs bg-b3-turquoise bg-opacity-20 text-b3-turquoise-dark px-2 py-1 rounded">
-                      Elbil
-                    </span>
-                  )}
-                  {car.isPluginHybrid && (
-                    <span className="text-xs bg-b3-blue bg-opacity-20 text-b3-blue-dark px-2 py-1 rounded">
-                      Laddhybrid
-                    </span>
-                  )}
+    <table className="cmp">
+      <thead>
+        <tr>
+          <SortHeader
+            {...headerProps}
+            field="model"
+            label="Bil"
+            align="left"
+            rowSpan={2}
+            className="th-model min-w-[14rem]"
+          />
+          <SortHeader
+            {...headerProps}
+            field="purchasePrice"
+            label="Inköpspris"
+            unit="kr"
+            rowSpan={2}
+            help={<p>Priset bilen köps eller leasas för. Grund för leasingkostnaden.</p>}
+          />
+          <th scope="colgroup" colSpan={2} className="group-head">
+            Belastar ramen
+          </th>
+          <th scope="colgroup" colSpan={4} className="group-head is-accent">
+            Kostar dig
+          </th>
+          <th scope="col" rowSpan={2} className="th-actions">
+            <span className="sr-only">Åtgärder</span>
+          </th>
+        </tr>
+        <tr>
+          <SortHeader
+            {...headerProps}
+            field="annualLeasingCost"
+            label="Leasing"
+            unit="kr/mån"
+            help={
+              <p>
+                Leasingkostnad inklusive moms, beräknad som annuitet med restvärde. Vid minst 100 tjänstemil
+                per år lyfter B3 halva momsen.
+              </p>
+            }
+          />
+          <SortHeader
+            {...headerProps}
+            field="totalCostFromRAM"
+            label={'RAM‑kostnad'}
+            unit="kr/mån"
+            help={
+              <>
+                <p>
+                  Det bilen belastar ramen med: leasing, försäkring, underhåll, fordonsskatt och
+                  arbetsgivaravgifter på förmånsvärdet.
+                </p>
+                <p>Drivmedel belastar inte ramen.</p>
+              </>
+            }
+          />
+          <SortHeader
+            {...headerProps}
+            field="benefitValue"
+            label="Förmånskostnad"
+            unit="kr/mån"
+            help={
+              <p>
+                Skatten du betalar på förmånsvärdet varje månad: förmånsvärdet per månad gånger din
+                marginalskatt på {taxPct}. Dras från nettolönen.
+              </p>
+            }
+          />
+          <SortHeader
+            {...headerProps}
+            field="salaryEquivalent"
+            label="Nettolön istället"
+            unit="kr/mån"
+            help={
+              <p>
+                Vad arbetsgivarens kostnad hade gett dig i nettolön om den betalats ut som lön: kostnaden delad
+                med 1,3142 för arbetsgivaravgiften, och sedan {netPct} kvar efter marginalskatt.
+              </p>
+            }
+          />
+          <SortHeader
+            {...headerProps}
+            field="costPerMile"
+            label="Totalt"
+            unit="kr/mån"
+            className="min-w-[8rem]"
+            help={
+              <>
+                <p>Din totala privata kostnad per månad: nettolön istället plus förmånskostnad.</p>
+                <p>Jämförbart med vad en privatleasing kostar. Stapeln visar kostnaden i förhållande till den dyraste bilen.</p>
+              </>
+            }
+          />
+          <SortHeader
+            {...headerProps}
+            field="costPerMile"
+            label={'Per mil'}
+            unit="kr/mil"
+            help={<p>Total privat kostnad per år delad med antalet mil du kör.</p>}
+          />
+        </tr>
+      </thead>
+      <tbody>
+        {cars.map((car, index) => {
+          const total = totalPerMonth(car)
+          const isLowest = cars.length > 1 && total === lowestTotal
+          return (
+            <tr key={car.id ?? `${car.model}-${index}`}>
+              <td className="cell-model">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className="font-semibold">{car.model}</span>
+                  {car.isElectric && <span className="tag tag-electric">Elbil</span>}
+                  {car.isPluginHybrid && <span className="tag tag-hybrid">Laddhybrid</span>}
+                </div>
+                {car.isLeasing && car.leasingPeriod && (
+                  <p className="mt-0.5 text-xs text-ink-faint">
+                    Leasing {car.leasingPeriod} mån, {fmtDec(car.interestRate ?? 5, 1)} % ränta
+                  </p>
+                )}
+              </td>
+
+              <td>
+                <span className="cell-label">Inköpspris, kr</span>
+                {fmtInt(car.purchasePrice)}
+              </td>
+
+              <td>
+                <span className="cell-label">Leasing, kr/mån</span>
+                {car.annualLeasingCost ? (
+                  fmtInt(car.annualLeasingCost / 12)
+                ) : (
+                  <span className="text-ink-faint">–</span>
+                )}
+              </td>
+
+              <td>
+                <span className="cell-label">RAM-kostnad, kr/mån</span>
+                <Tooltip className="val-btn" content={<ReceiptView receipt={ramReceipt(car)} />}>
+                  {fmtInt(car.totalCostFromRAM / 12)}
+                </Tooltip>
+              </td>
+
+              <td>
+                <span className="cell-label">Förmånskostnad, kr/mån</span>
+                <Tooltip className="val-btn" content={<ReceiptView receipt={benefitTaxReceipt(car)} />}>
+                  {fmtInt(benefitTaxPerMonth(car))}
+                </Tooltip>
+              </td>
+
+              <td>
+                <span className="cell-label">Nettolön istället, kr/mån</span>
+                <Tooltip className="val-btn" content={<ReceiptView receipt={netSalaryReceipt(car)} />}>
+                  {fmtInt(netSalaryPerMonth(car))}
+                </Tooltip>
+              </td>
+
+              <td className="cell-total">
+                <span className="cell-label">Totalt, kr/mån</span>
+                <Tooltip
+                  className="val-btn text-md font-semibold"
+                  content={<ReceiptView receipt={totalReceipt(car)} />}
+                >
+                  {fmtInt(total)}
+                </Tooltip>
+                {isLowest && <span className="sr-only">Lägst kostnad</span>}
+                <div className="bar" aria-hidden="true">
+                  <div
+                    className={`bar-fill${isLowest ? ' is-lowest' : ''}`}
+                    style={{ width: `${Math.max(4, (total / maxTotal) * 100)}%` }}
+                  />
                 </div>
               </td>
-              <td className="py-3 px-4 text-right text-gray-700">
-                {formatCurrency(car.purchasePrice)}
+
+              <td>
+                <span className="cell-label">Per mil, kr</span>
+                <Tooltip className="val-btn" content={<ReceiptView receipt={perMileReceipt(car)} />}>
+                  {fmtDec(car.costPerMile)}
+                </Tooltip>
               </td>
-              <td className="py-3 px-4 text-right text-gray-700">
-                {car.annualLeasingCost 
-                  ? formatCurrency(Math.round(car.annualLeasingCost / 12))
-                  : <span className="text-gray-400">-</span>
-                }
-              </td>
-              <td className="py-3 px-4 text-right text-gray-700">
-                <CalcTooltip car={car} column="ramCost">
-                  {formatCurrency(Math.round(car.totalCostFromRAM / 12))}
-                </CalcTooltip>
-              </td>
-              <td className="py-3 px-4 text-right text-gray-700">
-                <CalcTooltip car={car} column="netSalary">
-                  {formatCurrency(Math.round(car.salaryEquivalent / 12))}
-                </CalcTooltip>
-              </td>
-              <td className="py-3 px-4 text-right text-gray-700 font-medium text-b3-pink">
-                <CalcTooltip car={car} column="benefitTax">
-                  {formatCurrency(calculateBenefitTaxCost(car.benefitValue))}
-                </CalcTooltip>
-              </td>
-              <td className="py-3 px-4 text-right text-gray-700 font-semibold text-b3-grey">
-                <CalcTooltip car={car} column="totalPrivate">
-                  {formatCurrency(Math.round(car.salaryEquivalent / 12) + calculateBenefitTaxCost(car.benefitValue))}
-                </CalcTooltip>
-              </td>
-              <td className="py-3 px-4 text-right text-gray-700 font-medium">
-                <CalcTooltip car={car} column="costPerMile">
-                  {formatNumber(car.costPerMile, 2)} kr/mil
-                </CalcTooltip>
-              </td>
-              <td className="py-3 px-4">
-                <div className="flex justify-center gap-2">
-                  <button
-                    onClick={() => onEdit(car)}
-                    className="p-2 text-b3-turquoise hover:bg-b3-turquoise hover:bg-opacity-10 rounded-b3 transition-colors"
-                    title="Redigera"
-                  >
-                    <Edit2 size={18} />
-                  </button>
-                  <button
-                    onClick={() => car.id && onDelete(car.id)}
-                    className="p-2 text-b3-pink hover:bg-b3-pink hover:bg-opacity-10 rounded-b3 transition-colors"
-                    title="Ta bort"
-                  >
-                    <Trash2 size={18} />
-                  </button>
-                </div>
+
+              <td className="cell-actions">
+                <button
+                  type="button"
+                  onClick={() => onEdit(car)}
+                  className="icon-btn"
+                  aria-label={`Redigera ${car.model}`}
+                  title="Redigera"
+                >
+                  <Pencil size={16} aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onDelete(car)}
+                  className="icon-btn is-danger"
+                  aria-label={`Ta bort ${car.model}`}
+                  title="Ta bort"
+                >
+                  <Trash2 size={16} aria-hidden="true" />
+                </button>
               </td>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          )
+        })}
+      </tbody>
+    </table>
   )
 }

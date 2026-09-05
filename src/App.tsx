@@ -1,27 +1,31 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
-import { Plus } from 'lucide-react'
-import { calculateCarMetrics, type CarInput, type CarCalculations } from './lib/calculations'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Loader2, Plus } from 'lucide-react'
+import type { User } from '@supabase/supabase-js'
+import { calculateCarMetrics, type CarCalculations, type CarInput } from './lib/calculations'
 import { getSession, onAuthStateChange } from './lib/auth'
-import { createStorage, mapRowToCarInput, hasLocalCars, migrateLocalToSupabase } from './lib/storage'
+import { createStorage, hasLocalCars, mapRowToCarInput, migrateLocalToSupabase } from './lib/storage'
+import AuthSection from './components/AuthSection'
 import CarModal from './components/CarModal'
 import CarTable from './components/CarTable'
-import GlobalSettings, { type UserSettings } from './components/GlobalSettings'
-import AuthSection from './components/AuthSection'
-import type { User } from '@supabase/supabase-js'
+import GlobalSettings, { calculateMarginalTax, type UserSettings } from './components/GlobalSettings'
+import { ConfirmDialog } from './components/ui/Dialog'
+
+const SETTINGS_KEY = 'companyCarCalc_settings'
 
 // Default personliga inställningar
 const DEFAULT_SETTINGS: UserSettings = {
   grossSalary: 55000, // 55 000 kr/mån = vanlig tjänstemannalön
   annualKm: 15000, // 15 000 km/år = 1 500 mil
-  marginalTaxRate: 0.52 // Statlig + kommunal skatt
+  marginalTaxRate: 0.52,
 }
 
-// Ladda sparade inställningar från localStorage
+// Ladda sparade inställningar från localStorage (marginalskatten räknas alltid om från lönen)
 function loadSettings(): UserSettings {
   try {
-    const saved = localStorage.getItem('companyCarCalc_settings')
+    const saved = localStorage.getItem(SETTINGS_KEY)
     if (saved) {
-      return JSON.parse(saved)
+      const parsed = { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } as UserSettings
+      return { ...parsed, marginalTaxRate: calculateMarginalTax(parsed.grossSalary) }
     }
   } catch (e) {
     console.error('Error loading settings:', e)
@@ -29,10 +33,24 @@ function loadSettings(): UserSettings {
   return DEFAULT_SETTINGS
 }
 
+function B3Mark({ className = '' }: { className?: string }) {
+  return (
+    <span
+      className={`grid shrink-0 place-items-center rounded-lg bg-accent font-bold leading-none text-ink ${className}`}
+      aria-hidden="true"
+    >
+      B3
+    </span>
+  )
+}
+
 function App() {
   const [cars, setCars] = useState<CarCalculations[]>([])
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingCar, setEditingCar] = useState<CarCalculations | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<CarCalculations | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
   const [sortField, setSortField] = useState<keyof CarCalculations | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [loading, setLoading] = useState(true)
@@ -52,12 +70,15 @@ function App() {
     try {
       setLoading(true)
       const rows = await storage.loadCars()
-      const calculatedCars = rows.map(row => {
+      const calculatedCars = rows.map((row) => {
         const carInput = mapRowToCarInput(row)
-        return calculateCarMetrics({
-          ...carInput,
-          annualKm: userSettings.annualKm, // Använd personlig inställning
-        }, userSettings.marginalTaxRate)
+        return calculateCarMetrics(
+          {
+            ...carInput,
+            annualKm: userSettings.annualKm, // Använd personlig inställning
+          },
+          userSettings.marginalTaxRate
+        )
       })
       setCars(calculatedCars)
     } catch (error) {
@@ -71,13 +92,15 @@ function App() {
   // Auth-initialisering
   useEffect(() => {
     // 1. Kolla befintlig session
-    getSession().then(session => {
+    getSession().then((session) => {
       setUser(session?.user ?? null)
       setAuthLoading(false)
     })
 
     // 2. Lyssna på auth-ändringar (magic link callback, sign out, etc.)
-    const { data: { subscription } } = onAuthStateChange((event, session) => {
+    const {
+      data: { subscription },
+    } = onAuthStateChange((event, session) => {
       const newUser = session?.user ?? null
       setUser(newUser)
 
@@ -106,33 +129,34 @@ function App() {
   // Spara inställningar till localStorage och räkna om bilar när de ändras
   const handleSettingsChange = (newSettings: UserSettings) => {
     setUserSettings(newSettings)
-    localStorage.setItem('companyCarCalc_settings', JSON.stringify(newSettings))
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(newSettings))
+  }
+
+  const openNewCar = () => {
+    setEditingCar(null)
+    setIsModalOpen(true)
   }
 
   const handleSaveCar = async (carInput: CarInput) => {
-    try {
-      console.log('💾 handleSaveCar called with:', carInput)
-      await storage.saveCar(carInput, editingCar?.id)
-      await loadCars()
-      setIsModalOpen(false)
-      setEditingCar(null)
-      console.log('✅ Save completed, modal closed')
-    } catch (error) {
-      console.error('❌ Error saving car:', error)
-      alert(`Kunde inte spara bilen: ${error instanceof Error ? error.message : 'Okänt fel'}. Kontrollera konsolen för mer information.`)
-      throw error
-    }
+    await storage.saveCar(carInput, editingCar?.id)
+    await loadCars()
+    setIsModalOpen(false)
+    setEditingCar(null)
   }
 
-  const handleDeleteCar = async (id: string) => {
-    if (!confirm('Är du säker på att du vill ta bort denna bil?')) return
-
+  const handleConfirmDelete = async () => {
+    if (!pendingDelete?.id) return
     try {
-      await storage.deleteCar(id)
+      setDeleting(true)
+      await storage.deleteCar(pendingDelete.id)
+      setPendingDelete(null)
       await loadCars()
     } catch (error) {
       console.error('Error deleting car:', error)
-      alert('Kunde inte ta bort bilen.')
+      setPendingDelete(null)
+      setNotice('Bilen kunde inte tas bort. Försök igen.')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -153,13 +177,12 @@ function App() {
   const handleMigrate = async () => {
     if (!user) return
     try {
-      const count = await migrateLocalToSupabase(user.id)
-      console.log(`✅ Migrerade ${count} bilar till molnet`)
+      await migrateLocalToSupabase(user.id)
       setShowMigrationPrompt(false)
       await loadCars()
     } catch (error) {
       console.error('Migreringsfel:', error)
-      alert('Kunde inte flytta bilarna. Försök igen.')
+      setNotice('Bilarna kunde inte flyttas till kontot. Försök igen.')
     }
   }
 
@@ -185,154 +208,133 @@ function App() {
 
     const aStr = String(aValue)
     const bStr = String(bValue)
-    return sortDirection === 'asc'
-      ? aStr.localeCompare(bStr, 'sv')
-      : bStr.localeCompare(aStr, 'sv')
+    return sortDirection === 'asc' ? aStr.localeCompare(bStr, 'sv') : bStr.localeCompare(aStr, 'sv')
   })
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* B3 Zick-zack decoration */}
-      <div className="b3-zigzag h-3"></div>
-
-      {/* B3 Header */}
-      <header className="bg-white shadow-sm sticky top-0 z-40">
-        <div className="max-w-[1800px] mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <a href="https://b3.se" target="_blank" rel="noopener noreferrer" className="b3-logo">
-                <div className="bg-b3-turquoise text-white font-bold text-2xl px-3 py-1.5 rounded-lg">
-                  B3
-                </div>
-              </a>
-              <span className="font-semibold text-b3-turquoise text-xl">
-                Förmånsbilskalkylator
-              </span>
-            </div>
-            <AuthSection
-              user={user}
-              onSignOut={() => loadCars()}
-            />
-          </div>
+    <div className="flex min-h-dvh flex-col">
+      <header className="bg-b3-grey-dark text-white">
+        <div className="mx-auto flex max-w-page items-center justify-between gap-4 px-4 py-3 sm:px-6">
+          <a
+            href="https://b3.se"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 rounded-lg"
+          >
+            <B3Mark className="h-9 w-9 text-base" />
+            <span className="text-md font-semibold tracking-tight">Förmånsbilskalkylator</span>
+          </a>
+          <AuthSection user={user} onSignOut={() => loadCars()} />
         </div>
       </header>
+      <div className="zigzag" aria-hidden="true" />
 
-      {/* Migreringspromp */}
-      {showMigrationPrompt && (
-        <div className="bg-blue-50 border-b border-blue-200">
-          <div className="max-w-[1800px] mx-auto px-6 py-3">
-            <div className="flex items-center justify-between flex-wrap gap-3">
-              <p className="text-blue-800 text-sm">
-                Du har <strong>{migrationCount}</strong> bil{migrationCount !== 1 ? 'ar' : ''} sparade lokalt. Vill du flytta dem till ditt konto?
-              </p>
-              <div className="flex gap-2">
-                <button
-                  onClick={handleMigrate}
-                  className="bg-b3-turquoise hover:bg-b3-turquoise-dark text-white px-4 py-1.5 rounded-lg text-sm font-medium transition-all"
-                >
-                  Ja, flytta
-                </button>
-                <button
-                  onClick={handleSkipMigration}
-                  className="bg-white hover:bg-gray-100 text-gray-600 px-4 py-1.5 rounded-lg text-sm border border-gray-300 transition-all"
-                >
-                  Nej, börja om
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Hero Section */}
-      <section className="bg-gray-100 border-b border-gray-200">
-        <div className="max-w-[1800px] mx-auto px-6 py-8">
-          <p className="text-gray-600">
-            Jämför total ägandekostnad för förmånsbilar enligt B3s RAM-modell.
-            Beräkna förmånsvärde, RAM-kostnad och kostnad per mil baserat på dina personliga förutsättningar.
-          </p>
-        </div>
-      </section>
-
-      {/* Main Content */}
-      <main className="flex-grow">
-        <div className="max-w-[1800px] mx-auto px-6 py-8">
-          {/* Personliga inställningar */}
-          <GlobalSettings
-            settings={userSettings}
-            onSettingsChange={handleSettingsChange}
-          />
-
-          {/* Car Table */}
-          <div className="bg-white rounded-2xl shadow-lg p-8 overflow-visible mt-8">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900">Dina bilar</h2>
-                <p className="text-gray-500 mt-1">
-                  Beräkna TCO, total kostnad från RAM, lönemotsvarande och kostnad per mil
-                </p>
-              </div>
-              <button
-                onClick={() => {
-                  setEditingCar(null)
-                  setIsModalOpen(true)
-                }}
-                className="flex items-center gap-2 bg-b3-turquoise hover:bg-b3-turquoise-dark text-white px-6 py-3 rounded-xl transition-all shadow-md hover:shadow-lg font-semibold"
-              >
-                <Plus size={20} />
-                Lägg till bil
+      <main className="mx-auto w-full max-w-page flex-1 px-4 py-8 sm:px-6 sm:py-10">
+        {showMigrationPrompt && (
+          <div className="card mb-8 flex flex-wrap items-center justify-between gap-3 px-5 py-4" role="status">
+            <p>
+              Du har <strong className="font-semibold">{migrationCount}</strong>{' '}
+              {migrationCount === 1 ? 'bil' : 'bilar'} sparade i webbläsaren. Vill du flytta{' '}
+              {migrationCount === 1 ? 'den' : 'dem'} till ditt konto?
+            </p>
+            <div className="flex gap-2">
+              <button type="button" onClick={handleMigrate} className="btn btn-primary btn-sm">
+                Flytta till kontot
+              </button>
+              <button type="button" onClick={handleSkipMigration} className="btn btn-secondary btn-sm">
+                Nej, ta bort {migrationCount === 1 ? 'den' : 'dem'}
               </button>
             </div>
+          </div>
+        )}
 
+        {notice && (
+          <div
+            className="mb-8 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-danger bg-danger-tint px-5 py-3 text-sm"
+            role="alert"
+          >
+            <p>{notice}</p>
+            <button type="button" onClick={() => setNotice(null)} className="btn btn-ghost btn-sm">
+              Stäng
+            </button>
+          </div>
+        )}
+
+        <div className="max-w-2xl">
+          <h1 className="text-xl font-semibold">Vad kostar en förmånsbil dig?</h1>
+          <p className="mt-2 text-ink-soft">
+            Jämför bilar på vad de kostar dig per månad och vad de belastar ramen med, enligt Skatteverkets
+            regler för 2026 och B3:s RAM-policy.
+          </p>
+        </div>
+
+        <div className="mt-8">
+          <GlobalSettings settings={userSettings} onSettingsChange={handleSettingsChange} />
+        </div>
+
+        <section className="card mt-8 p-5 sm:p-7" aria-labelledby="cars-heading">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h2 id="cars-heading" className="text-lg font-semibold">
+                Jämförelse
+              </h2>
+              <p className="mt-1 text-sm text-ink-soft">
+                {cars.length > 0 && `${cars.length} ${cars.length === 1 ? 'bil' : 'bilar'}. `}
+                Alla belopp per månad om inget annat anges.
+              </p>
+            </div>
+            <button type="button" onClick={openNewCar} className="btn btn-primary">
+              <Plus size={18} aria-hidden="true" />
+              Lägg till bil
+            </button>
+          </div>
+
+          <div className="mt-6">
             {loading ? (
-              <div className="text-center py-16">
-                <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-b3-turquoise border-t-transparent"></div>
-                <p className="mt-4 text-gray-600">Laddar bilar...</p>
-              </div>
+              <p className="flex items-center justify-center gap-2 py-14 text-ink-soft" role="status">
+                <Loader2 size={18} className="animate-spin text-accent-ink" aria-hidden="true" />
+                Hämtar bilar…
+              </p>
             ) : cars.length === 0 ? (
-              <div className="text-center py-16 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300">
-                <div className="mb-4">
-                  <svg className="w-16 h-16 mx-auto text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                  </svg>
-                </div>
-                <p className="text-gray-600 mb-4 font-medium">Inga bilar tillagda ännu.</p>
-                <button
-                  onClick={() => {
-                    setEditingCar(null)
-                    setIsModalOpen(true)
-                  }}
-                  className="bg-b3-turquoise hover:bg-b3-turquoise-dark text-white px-6 py-3 rounded-xl font-semibold transition-all shadow-md hover:shadow-lg"
-                >
-                  Lägg till din första bil
+              <div className="rounded-2xl border border-dashed border-line-strong px-6 py-14 text-center">
+                <p className="font-medium">Inga bilar att jämföra ännu.</p>
+                <p className="mx-auto mt-1 max-w-md text-sm text-ink-soft">
+                  Lägg till en bil från Skatteverkets register så ser du direkt vad den kostar dig per månad.
+                </p>
+                <button type="button" onClick={openNewCar} className="btn btn-primary mt-5">
+                  <Plus size={18} aria-hidden="true" />
+                  Lägg till första bilen
                 </button>
               </div>
             ) : (
-              <CarTable
-                cars={sortedCars}
-                sortField={sortField}
-                sortDirection={sortDirection}
-                onSort={handleSort}
-                onEdit={handleEditCar}
-                onDelete={handleDeleteCar}
-                marginalTaxRate={userSettings.marginalTaxRate}
-              />
+              <div className="overflow-x-auto">
+                <CarTable
+                  cars={sortedCars}
+                  sortField={sortField}
+                  sortDirection={sortDirection}
+                  onSort={handleSort}
+                  onEdit={handleEditCar}
+                  onDelete={setPendingDelete}
+                  marginalTaxRate={userSettings.marginalTaxRate}
+                />
+              </div>
             )}
           </div>
-        </div>
+        </section>
       </main>
 
-      {/* B3 Footer */}
-      <footer className="bg-gray-900 text-white mt-auto">
-        <div className="max-w-[1800px] mx-auto px-6 py-6">
-          <div className="flex items-center gap-4">
-            <a href="https://b3.se" target="_blank" rel="noopener noreferrer" className="b3-logo">
-              <div className="bg-b3-turquoise text-white font-bold text-xl px-2.5 py-1 rounded-lg">
-                B3
-              </div>
-            </a>
-            <p className="text-gray-400 italic text-sm">Creating possibilities together</p>
-          </div>
+      <footer className="bg-b3-grey-dark text-white/70">
+        <div className="mx-auto flex max-w-page flex-wrap items-center justify-between gap-x-8 gap-y-3 px-4 py-6 text-sm sm:px-6">
+          <a
+            href="https://b3.se"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 rounded-lg"
+          >
+            <B3Mark className="h-7 w-7 text-xs" />
+            <span className="italic">Creating possibilities together</span>
+          </a>
+          <p>Beräkningar enligt Skatteverkets belopp för 2026 och B3:s riktlinjer för RAM (B16 och C11).</p>
         </div>
       </footer>
 
@@ -344,6 +346,17 @@ function App() {
             setEditingCar(null)
           }}
           onSave={handleSaveCar}
+        />
+      )}
+
+      {pendingDelete && (
+        <ConfirmDialog
+          title="Ta bort bilen?"
+          message={`${pendingDelete.model} försvinner från jämförelsen.`}
+          confirmLabel="Ta bort"
+          busy={deleting}
+          onConfirm={handleConfirmDelete}
+          onClose={() => setPendingDelete(null)}
         />
       )}
     </div>

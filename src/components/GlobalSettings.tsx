@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
-import { Settings, ChevronDown, ChevronUp } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
+import { fmtInt } from '../lib/format'
+import { Field, TextInput } from './ui/Field'
 
 export interface UserSettings {
   grossSalary: number // Bruttolön per månad
@@ -12,144 +13,88 @@ interface GlobalSettingsProps {
   onSettingsChange: (settings: UserSettings) => void
 }
 
-// Beräkna marginalskatt baserat på årsinkomst (förenklad svensk skattemodell 2026)
-function calculateMarginalTax(monthlyGrossSalary: number): number {
-  const annualSalary = monthlyGrossSalary * 12
-
-  // Förenklad skattemodell 2026:
-  // - Skiktgräns: 643 000 kr/år
-  // - Under 643 000 kr/år: ca 32% kommunalskatt
-  // - Över 643 000 kr/år: +20% statlig skatt = ca 52%
-
-  if (annualSalary <= 643000) {
-    return 0.32 // Endast kommunalskatt
-  } else {
-    return 0.52 // Kommunalskatt + statlig skatt
-  }
+// Förenklad svensk skattemodell 2026: skiktgräns 643 000 kr/år.
+// Under gränsen ca 32 % kommunalskatt, över gränsen +20 % statlig skatt.
+export function calculateMarginalTax(monthlyGrossSalary: number): number {
+  return monthlyGrossSalary * 12 <= 643000 ? 0.32 : 0.52
 }
 
+/** Förutsättningar som gäller alla bilar: lön, körsträcka och därmed marginalskatt. */
 export default function GlobalSettings({ settings, onSettingsChange }: GlobalSettingsProps) {
-  const [isExpanded, setIsExpanded] = useState(false)
-  const [grossSalary, setGrossSalary] = useState(settings.grossSalary)
-  const [annualKm, setAnnualKm] = useState(settings.annualKm)
+  const update = (patch: Partial<Pick<UserSettings, 'grossSalary' | 'annualKm'>>) => {
+    const next = { ...settings, ...patch }
+    onSettingsChange({ ...next, marginalTaxRate: calculateMarginalTax(next.grossSalary) })
+  }
 
-  // Beräkna marginalskatt när bruttolön ändras
-  useEffect(() => {
-    const newMarginalTax = calculateMarginalTax(grossSalary)
-    onSettingsChange({
-      grossSalary,
-      annualKm,
-      marginalTaxRate: newMarginalTax
-    })
-  }, [grossSalary, annualKm])
-
-  const marginalTaxPercent = Math.round(calculateMarginalTax(grossSalary) * 100)
-  const annualMiles = Math.round(annualKm / 10)
+  const taxPercent = Math.round(settings.marginalTaxRate * 100)
+  const annualMiles = Math.round(settings.annualKm / 10)
 
   return (
-    <div className="bg-white rounded-b3 shadow-lg mb-6 overflow-hidden">
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
-      >
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-b3-turquoise bg-opacity-10 rounded-lg">
-            <Settings size={20} className="text-b3-turquoise" />
-          </div>
-          <div className="text-left">
-            <h3 className="font-semibold text-b3-grey">Personliga inställningar</h3>
-            <p className="text-sm text-gray-500">
-              Bruttolön: {grossSalary.toLocaleString('sv-SE')} kr/mån • 
-              Körsträcka: {annualKm.toLocaleString('sv-SE')} km/år ({annualMiles} mil) • 
-              Marginalskatt: {marginalTaxPercent}%
-            </p>
-          </div>
+    <section aria-labelledby="settings-heading">
+      <h2 id="settings-heading" className="text-lg font-semibold">
+        Dina förutsättningar
+      </h2>
+      <p className="mt-1 text-sm text-ink-soft">Styr marginalskatten och kostnaden per mil för alla bilar.</p>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <Field label="Bruttolön" htmlFor="gross-salary" hint="Per månad, före skatt">
+          <TextInput
+            id="gross-salary"
+            type="number"
+            inputMode="numeric"
+            min={0}
+            step={1000}
+            suffix="kr/mån"
+            value={settings.grossSalary}
+            onChange={(e) => update({ grossSalary: Number(e.target.value) })}
+          />
+        </Field>
+
+        <Field label="Körsträcka" htmlFor="annual-km" hint={`${fmtInt(annualMiles)} mil per år`}>
+          <TextInput
+            id="annual-km"
+            type="number"
+            inputMode="numeric"
+            min={0}
+            step={1000}
+            suffix="km/år"
+            value={settings.annualKm}
+            onChange={(e) => update({ annualKm: Number(e.target.value) })}
+          />
+        </Field>
+
+        <Field
+          label="Marginalskatt"
+          htmlFor="marginal-tax"
+          hint={taxPercent > 32 ? 'Kommunal och statlig skatt' : 'Endast kommunalskatt'}
+        >
+          <TextInput id="marginal-tax" readOnly value={`${taxPercent} %`} className="num" />
+        </Field>
+      </div>
+
+      <details className="disclosure mt-3">
+        <summary>
+          <ChevronRight size={16} aria-hidden="true" />
+          Hur påverkar uppgifterna beräkningen?
+        </summary>
+        <div className="mt-3 max-w-prose space-y-3 text-sm text-ink-soft">
+          <p>
+            <strong className="font-medium text-ink">Bruttolönen</strong> avgör din marginalskatt: 32 % under
+            skiktgränsen 643 000 kr per år och 52 % över den. Marginalskatten används både för förmånskostnaden
+            och för vad pengarna hade gett dig i nettolön.
+          </p>
+          <p>
+            <strong className="font-medium text-ink">Körsträckan</strong> används bara för kostnaden per mil.
+          </p>
+          <p>
+            <strong className="font-medium text-ink">Varför blir milkostnaden lägre med högre lön?</strong> Med
+            högre marginalskatt förlorar du mindre nettolön på att ha bilen, eftersom en större del av pengarna
+            ändå hade gått i skatt om de betalats ut som lön. Lägger arbetsgivaren 100 000 kr på bilen hade du
+            fått ungefär 52 000 kr netto vid 32 % skatt men bara 37 000 kr vid 52 %. Förmånsbilen blir därför
+            relativt sett förmånligare ju högre marginalskatt du har.
+          </p>
         </div>
-        {isExpanded ? (
-          <ChevronUp size={20} className="text-gray-400" />
-        ) : (
-          <ChevronDown size={20} className="text-gray-400" />
-        )}
-      </button>
-
-      {isExpanded && (
-        <div className="p-6 pt-2 border-t border-gray-100">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Bruttolön */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Din bruttolön (kr/månad)
-              </label>
-              <input
-                type="number"
-                value={grossSalary}
-                onChange={(e) => setGrossSalary(Number(e.target.value))}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-b3-turquoise focus:border-transparent"
-                step="1000"
-                min="0"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Påverkar vilken marginalskatt som används i beräkningarna
-              </p>
-            </div>
-
-            {/* Årlig körsträcka */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Årlig körsträcka (km/år)
-              </label>
-              <input
-                type="number"
-                value={annualKm}
-                onChange={(e) => setAnnualKm(Number(e.target.value))}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-b3-turquoise focus:border-transparent"
-                step="1000"
-                min="0"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                = {annualMiles.toLocaleString('sv-SE')} mil/år. Påverkar kostnad per mil.
-              </p>
-            </div>
-
-            {/* Beräknad marginalskatt (readonly) */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Beräknad marginalskatt
-              </label>
-              <div className="w-full px-4 py-3 bg-gray-100 border border-gray-300 rounded-lg text-gray-700 font-medium">
-                {marginalTaxPercent}%
-              </div>
-              <p className="text-xs text-gray-500 mt-1">
-                {marginalTaxPercent <= 32 && 'Endast kommunalskatt'}
-                {marginalTaxPercent > 32 && 'Kommunal + statlig skatt'}
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-4 p-4 bg-b3-beige rounded-lg">
-            <p className="text-sm text-b3-grey">
-              <strong>Så påverkar inställningarna beräkningarna:</strong><br/>
-              • <strong>Bruttolön</strong> → Bestämmer din marginalskatt (32-52%)<br/>
-              • <strong>Marginalskatt</strong> → Påverkar "Nettolön istället" och TCO-beräkningar<br/>
-              • <strong>Körsträcka</strong> → Påverkar "Kostnad/mil"
-            </p>
-          </div>
-
-          <div className="mt-3 p-4 bg-b3-turquoise bg-opacity-10 rounded-lg border border-b3-turquoise border-opacity-30">
-            <p className="text-sm text-b3-grey">
-              <strong>💡 Varför blir milkostnaden lägre vid högre lön?</strong><br/><br/>
-              Med högre marginalskatt "förlorar" du mindre nettolön på att ha förmånsbilen, 
-              eftersom pengarna ändå hade skattats bort till stor del om de betalats ut som lön.<br/><br/>
-              <strong>Exempel:</strong> Om arbetsgivaren lägger 100 000 kr på bilen:<br/>
-              • Vid 32% marginalskatt → du hade fått ~52 000 kr netto<br/>
-              • Vid 52% marginalskatt → du hade fått ~37 000 kr netto<br/><br/>
-              Förmånsbilen blir alltså relativt sett <em>fördelaktigare</em> ju högre marginalskatt du har.
-              Detta är en av anledningarna till att förmånsbilar är populära bland höginkomsttagare.
-            </p>
-          </div>
-        </div>
-      )}
-    </div>
+      </details>
+    </section>
   )
 }
-

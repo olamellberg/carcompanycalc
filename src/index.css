@@ -1,72 +1,729 @@
-@import url('https://fonts.googleapis.com/css2?family=Work+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-body {
-  margin: 0;
-  font-family: 'Work Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 
-    'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+/* ------------------------------------------------------------------
+   Tokens
+   Brand values from the B3 brandbook (2024); semantic tokens below map
+   them to roles. Tailwind reads the semantic tokens (tailwind.config.js).
+   ------------------------------------------------------------------ */
+@layer base {
+  :root {
+    color-scheme: light;
+
+    --b3-turquoise: #0CCCCC;
+    --b3-turquoise-dark: #06A6A7;
+    --b3-turquoise-deep: #087272;
+    --b3-turquoise-tint: #DDF6F6;
+    --b3-pink: #DF668A;
+    --b3-pink-tint: #FBE9EF;
+    --b3-blue-dark: #335B92;
+    --b3-blue-tint: #E4EBF5;
+    --b3-beige: #EEE8E4;
+    --b3-grey-dark: #2A2A2A;
+
+    --paper: var(--b3-beige);
+    --surface: #FFFFFF;
+    --surface-muted: #F7F4F1;
+    --line: #E3DBD4;
+    --line-strong: #CBC1B8;
+    --ink: var(--b3-grey-dark);
+    --ink-soft: #5E5A57;
+    --ink-faint: #8D8781;
+    --accent: var(--b3-turquoise);
+    --accent-dark: var(--b3-turquoise-dark);
+    --accent-ink: var(--b3-turquoise-deep);
+    --accent-tint: var(--b3-turquoise-tint);
+    --danger: #B0456A;
+    --danger-tint: var(--b3-pink-tint);
+    --focus: var(--b3-turquoise-dark);
+
+    --radius-card: 24px;
+    --radius-control: 8px;
+    --radius-tag: 4px;
+
+    --shadow-float: 0 12px 32px rgb(42 42 42 / 0.18), 0 2px 6px rgb(42 42 42 / 0.08);
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-size: 0.9375rem;
+    line-height: 1.5;
+    accent-color: var(--accent-dark);
+  }
+
+  body:has(dialog[open]) {
+    overflow: hidden;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--accent-tint);
+  }
+
+  input[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  h1,
+  h2,
+  h3,
+  legend,
+  th {
+    text-wrap: balance;
+  }
 }
 
-/* B3 Zick-zack pattern */
-.b3-zigzag {
-  background: linear-gradient(135deg, #222 25%, transparent 25%) -20px 0,
-              linear-gradient(225deg, #222 25%, transparent 25%) -20px 0,
-              linear-gradient(315deg, #222 25%, transparent 25%),
-              linear-gradient(45deg, #222 25%, transparent 25%);
-  background-size: 40px 20px;
-  background-color: #333;
+/* ------------------------------------------------------------------
+   Components
+   ------------------------------------------------------------------ */
+@layer components {
+  /* B3 zigzag: the dark masthead bites into the page with turquoise teeth. */
+  .zigzag {
+    height: 8px;
+    background: conic-gradient(from -45deg at bottom, var(--accent) 90deg, transparent 0) 0 0 / 16px 8px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-card);
+  }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 2.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-control);
+    font-weight: 600;
+    font-size: 0.9375rem;
+    line-height: 1.25;
+    white-space: nowrap;
+    transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+  }
+  .btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: var(--ink);
+  }
+  .btn-primary:not(:disabled):hover {
+    background: var(--accent-dark);
+  }
+  .btn-secondary {
+    background: var(--surface);
+    color: var(--ink);
+    border: 1px solid var(--line-strong);
+  }
+  .btn-secondary:not(:disabled):hover {
+    background: var(--surface-muted);
+  }
+  .btn-ghost {
+    color: var(--ink-soft);
+  }
+  .btn-ghost:not(:disabled):hover {
+    background: var(--surface-muted);
+    color: var(--ink);
+  }
+  .btn-danger {
+    background: var(--danger);
+    color: #fff;
+  }
+  .btn-danger:not(:disabled):hover {
+    filter: brightness(0.92);
+  }
+  .btn-sm {
+    min-height: 2.125rem;
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
+  }
+  /* On the dark masthead */
+  .btn-inverse {
+    color: #fff;
+    border: 1px solid rgb(255 255 255 / 0.28);
+  }
+  .btn-inverse:not(:disabled):hover {
+    background: rgb(255 255 255 / 0.1);
+  }
+
+  .icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: var(--radius-control);
+    color: var(--ink-faint);
+    transition: background-color 120ms ease, color 120ms ease;
+  }
+  .icon-btn:hover {
+    background: var(--surface-muted);
+    color: var(--ink);
+  }
+  .icon-btn.is-danger:hover {
+    background: var(--danger-tint);
+    color: var(--danger);
+  }
+
+  /* Tags */
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.0625rem 0.4375rem;
+    border-radius: var(--radius-tag);
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1.25rem;
+    white-space: nowrap;
+  }
+  .tag-electric {
+    background: var(--accent-tint);
+    color: var(--accent-ink);
+  }
+  .tag-hybrid {
+    background: var(--b3-blue-tint);
+    color: var(--b3-blue-dark);
+  }
+
+  /* Form controls */
+  .field-label {
+    display: block;
+    margin-bottom: 0.375rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--ink-soft);
+  }
+  .field-hint {
+    margin-top: 0.375rem;
+    font-size: 0.8125rem;
+    line-height: 1.25rem;
+    color: var(--ink-faint);
+  }
+  .field-error {
+    margin-top: 0.375rem;
+    font-size: 0.8125rem;
+    line-height: 1.25rem;
+    color: var(--danger);
+  }
+
+  .control {
+    display: flex;
+    align-items: center;
+    min-height: 2.5rem;
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius-control);
+    transition: border-color 120ms ease, box-shadow 120ms ease;
+  }
+  .control:focus-within {
+    border-color: var(--focus);
+    box-shadow: 0 0 0 3px var(--accent-tint);
+  }
+  .control.is-invalid {
+    border-color: var(--danger);
+  }
+  .control.is-readonly {
+    background: var(--surface-muted);
+    border-color: var(--line);
+  }
+  .control-input {
+    flex: 1;
+    min-width: 0;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    background: transparent;
+    border: 0;
+    color: var(--ink);
+    font: inherit;
+    font-size: 0.9375rem;
+  }
+  .control-input::placeholder {
+    color: var(--ink-faint);
+  }
+  .control-input:focus {
+    outline: none;
+  }
+  .control-input:disabled {
+    color: var(--ink-faint);
+    cursor: not-allowed;
+  }
+  .control-suffix {
+    padding: 0 0.75rem 0 0;
+    font-size: 0.8125rem;
+    color: var(--ink-faint);
+    white-space: nowrap;
+  }
+  .control-select {
+    appearance: none;
+    padding-right: 2.25rem;
+    cursor: pointer;
+  }
+  .control-select:disabled {
+    cursor: not-allowed;
+  }
+  @media (forced-colors: active) {
+    .control:focus-within {
+      outline: 2px solid Highlight;
+    }
+  }
+
+  /* Segmented radio group */
+  .seg {
+    display: inline-flex;
+    flex-wrap: wrap;
+    max-width: 100%;
+    padding: 3px;
+    background: var(--surface-muted);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-control);
+  }
+  .seg label {
+    position: relative;
+    display: inline-flex;
+    flex: 1 1 auto;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    white-space: nowrap;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    color: var(--ink-soft);
+    cursor: pointer;
+    transition: background-color 120ms ease, color 120ms ease;
+  }
+  .seg label:has(:checked) {
+    background: var(--surface);
+    color: var(--ink);
+    font-weight: 500;
+    box-shadow: 0 1px 2px rgb(42 42 42 / 0.12);
+  }
+  .seg label:has(:focus-visible) {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+  .seg input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* Range slider */
+  .range {
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    margin: 0.625rem 0;
+    border-radius: 2px;
+    background: var(--line-strong);
+    cursor: pointer;
+  }
+  .range::-webkit-slider-thumb {
+    appearance: none;
+    width: 1.125rem;
+    height: 1.125rem;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 2px solid var(--surface);
+    box-shadow: 0 1px 3px rgb(42 42 42 / 0.3);
+  }
+  .range::-moz-range-thumb {
+    width: 1.125rem;
+    height: 1.125rem;
+    border-radius: 50%;
+    background: var(--accent);
+    border: 2px solid var(--surface);
+    box-shadow: 0 1px 3px rgb(42 42 42 / 0.3);
+  }
+  .range::-moz-range-track {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--line-strong);
+  }
+  .range:focus-visible {
+    outline-offset: 6px;
+  }
+
+  /* Check row */
+  .check {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.625rem;
+    cursor: pointer;
+  }
+  .check input {
+    width: 1rem;
+    height: 1rem;
+    margin-top: 0.25rem;
+    flex: none;
+  }
+
+  /* Disclosure */
+  .disclosure > summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    cursor: pointer;
+    list-style: none;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--accent-ink);
+    border-radius: var(--radius-tag);
+  }
+  .disclosure > summary::-webkit-details-marker {
+    display: none;
+  }
+  .disclosure > summary svg {
+    transition: rotate 150ms ease;
+  }
+  .disclosure[open] > summary svg {
+    rotate: 90deg;
+  }
+
+  /* Tooltip (rendered in a portal, positioned by JS) */
+  .tip {
+    position: fixed;
+    z-index: 60;
+    width: max-content;
+    max-width: min(24rem, calc(100vw - 1.5rem));
+    padding: 0.75rem 0.875rem;
+    background: var(--ink);
+    color: #fff;
+    border-radius: 12px;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    box-shadow: var(--shadow-float);
+    animation: tip-in 120ms ease-out;
+  }
+  .tip-title {
+    margin-bottom: 0.375rem;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .tip-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 1.25rem;
+  }
+  .tip-row > :last-child {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .tip-row.is-sum {
+    margin-top: 0.375rem;
+    padding-top: 0.375rem;
+    border-top: 1px solid rgb(255 255 255 / 0.22);
+    font-weight: 600;
+  }
+  .tip-row.is-sum + .tip-row.is-sum {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
+  }
+  .tip-note {
+    margin-top: 0.5rem;
+    color: rgb(255 255 255 / 0.68);
+  }
+  .tip p + p {
+    margin-top: 0.375rem;
+  }
+  @keyframes tip-in {
+    from {
+      opacity: 0;
+      translate: 0 2px;
+    }
+  }
+
+  /* Native <dialog> as a sheet */
+  .sheet {
+    display: none;
+    flex-direction: column;
+    width: calc(100vw - 2rem);
+    max-width: 42rem;
+    max-height: calc(100dvh - 2rem);
+    padding: 0;
+    margin: auto;
+    border: 0;
+    border-radius: var(--radius-card);
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: var(--shadow-float);
+    overflow: hidden;
+    opacity: 1;
+    translate: 0 0;
+    transition: opacity 180ms ease, translate 180ms ease, display 180ms allow-discrete, overlay 180ms allow-discrete;
+  }
+  .sheet[open] {
+    display: flex;
+  }
+  .sheet-sm {
+    max-width: 26rem;
+  }
+  .sheet::backdrop {
+    background: rgb(42 42 42 / 0.55);
+    backdrop-filter: blur(2px);
+    transition: opacity 180ms ease, display 180ms allow-discrete, overlay 180ms allow-discrete;
+  }
+  @starting-style {
+    .sheet[open] {
+      opacity: 0;
+      translate: 0 10px;
+    }
+    .sheet[open]::backdrop {
+      opacity: 0;
+    }
+  }
+  .sheet-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.25rem 1.25rem 1rem 1.5rem;
+    border-bottom: 1px solid var(--line);
+  }
+  .sheet-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 1.25rem 1.5rem;
+  }
+  .sheet-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding: 1rem 1.5rem;
+    border-top: 1px solid var(--line);
+    background: var(--surface);
+  }
+
+  /* Comparison table */
+  .cmp {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  .cmp th {
+    padding: 0.5rem 0.5rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--ink-soft);
+    text-align: right;
+    vertical-align: bottom;
+  }
+  .cmp th.th-model {
+    text-align: left;
+    padding-left: 0;
+  }
+  .cmp th.th-actions {
+    padding-right: 0;
+  }
+  .cmp thead tr:last-child th,
+  .cmp thead th[rowspan] {
+    border-bottom: 1px solid var(--line-strong);
+    padding-bottom: 0.625rem;
+  }
+  .cmp .group-head {
+    padding-bottom: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--ink-faint);
+    text-align: left;
+    border-bottom: 2px solid var(--line-strong);
+  }
+  .cmp .group-head.is-accent {
+    color: var(--accent-ink);
+    border-bottom-color: var(--accent);
+  }
+  .cmp td {
+    padding: 0.875rem 0.5rem;
+    border-bottom: 1px solid var(--line);
+    text-align: right;
+    vertical-align: middle;
+    font-variant-numeric: tabular-nums;
+  }
+  .cmp td.cell-model {
+    text-align: left;
+    padding-left: 0;
+  }
+  .cmp td.cell-actions {
+    padding-right: 0;
+    white-space: nowrap;
+  }
+  .cmp td.cell-total {
+    padding-bottom: 0.625rem;
+  }
+  .cmp .bar {
+    margin-top: 0.375rem;
+    height: 3px;
+    width: 100%;
+    min-width: 5rem;
+  }
+  .cmp .bar-fill {
+    height: 100%;
+    margin-left: auto;
+    border-radius: 2px;
+    background: var(--line-strong);
+  }
+  .cmp .bar-fill.is-lowest {
+    background: var(--accent);
+  }
+  .icon-help {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: var(--radius-tag);
+    color: var(--ink-faint);
+    cursor: help;
+  }
+  .icon-help:hover {
+    color: var(--accent-ink);
+  }
+  .cmp tbody tr:last-child td {
+    border-bottom: 0;
+  }
+  .cmp tbody tr:hover td {
+    background: var(--surface-muted);
+  }
+  .cmp .cell-label {
+    display: none;
+  }
+  .cmp .th-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    border-radius: var(--radius-tag);
+    text-align: inherit;
+    color: inherit;
+  }
+  .cmp .th-btn:hover {
+    color: var(--ink);
+  }
+  .cmp th[aria-sort] .th-btn {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .cmp .val-btn {
+    border-bottom: 1px dotted var(--line-strong);
+    border-radius: 2px;
+    cursor: help;
+    font-variant-numeric: tabular-nums;
+  }
+  .cmp .val-btn:hover {
+    border-bottom-color: var(--accent-ink);
+    color: var(--accent-ink);
+  }
+
+  @media (max-width: 63.999rem) {
+    .cmp thead {
+      display: none;
+    }
+    .cmp,
+    .cmp tbody {
+      display: block;
+    }
+    .cmp tbody tr {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.875rem 1rem;
+      padding: 1rem;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--surface);
+    }
+    .cmp tbody tr + tr {
+      margin-top: 0.75rem;
+    }
+    .cmp tbody tr:hover td {
+      background: transparent;
+    }
+    .cmp td,
+    .cmp td.cell-model,
+    .cmp td.cell-total,
+    .cmp td.cell-actions {
+      display: block;
+      padding: 0;
+      border-bottom: 0;
+      text-align: left;
+    }
+    .cmp .bar-fill {
+      margin-left: 0;
+    }
+    .cmp td.cell-model,
+    .cmp td.cell-total,
+    .cmp td.cell-actions {
+      grid-column: 1 / -1;
+    }
+    /* På kort: bilen först, sedan totalkostnaden, därefter övriga mått */
+    .cmp td.cell-model {
+      order: -2;
+    }
+    .cmp td.cell-total {
+      order: -1;
+    }
+    .cmp td.cell-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.25rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid var(--line);
+    }
+    .cmp .cell-label {
+      display: block;
+      margin-bottom: 0.125rem;
+      font-size: 0.75rem;
+      color: var(--ink-faint);
+    }
+  }
+
+  @media (pointer: coarse) {
+    .icon-btn {
+      width: 2.75rem;
+      height: 2.75rem;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sheet,
+    .sheet::backdrop,
+    .tip,
+    .disclosure > summary svg {
+      transition: none;
+      animation: none;
+    }
+  }
 }
 
-/* B3 Logo animation */
-.b3-logo {
-  transition: transform 0.2s ease;
-}
-.b3-logo:hover {
-  transform: scale(1.05);
-}
-
-/* Table hover effects */
-.car-row:hover {
-  background-color: rgba(12, 204, 204, 0.05);
-}
-
-/* Smooth transitions */
-* {
-  transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform;
-  transition-duration: 150ms;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #0CCCCC;
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #06A6A7;
-}
-
-/* Focus styles */
-button:focus-visible,
-input:focus-visible,
-select:focus-visible {
-  outline: 2px solid #0CCCCC;
-  outline-offset: 2px;
+@layer utilities {
+  .num {
+    font-variant-numeric: tabular-nums;
+  }
 }
