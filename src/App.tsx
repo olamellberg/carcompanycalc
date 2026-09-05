@@ -213,7 +213,7 @@ function App() {
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <header className="bg-b3-grey-dark text-white">
+      <header className="border-b-[3px] border-accent bg-b3-grey-dark text-white">
         <div className="mx-auto flex max-w-page items-center justify-between gap-4 px-4 py-3 sm:px-6">
           <a
             href="https://b3.se"
@@ -227,7 +227,6 @@ function App() {
           <AuthSection user={user} onSignOut={() => loadCars()} />
         </div>
       </header>
-      <div className="zigzag" aria-hidden="true" />
 
       <main className="mx-auto w-full max-w-page flex-1 px-4 py-8 sm:px-6 sm:py-10">
         {showMigrationPrompt && (

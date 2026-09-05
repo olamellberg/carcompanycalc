@@ -94,12 +94,6 @@
    Components
    ------------------------------------------------------------------ */
 @layer components {
-  /* B3 zigzag: the dark masthead bites into the page with turquoise teeth. */
-  .zigzag {
-    height: 8px;
-    background: conic-gradient(from -45deg at bottom, var(--accent) 90deg, transparent 0) 0 0 / 16px 8px;
-  }
-
   .card {
     background: var(--surface);
     border: 1px solid var(--line);
