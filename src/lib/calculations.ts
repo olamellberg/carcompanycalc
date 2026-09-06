@@ -49,7 +49,6 @@ export interface CarInput {
   annualLeasingCost?: number
   serviceMiles?: number // Tjänstemil per år (för momsberäkning OCH förmånsvärde)
   insuranceIncludedInLeasing?: boolean // Om försäkring ingår i leasing
-  maintenanceIncludedInLeasing?: boolean // Om underhåll ingår i leasing
   registeredAfterJuly2022?: boolean // Om bilen registrerades efter 1 juli 2022
   vehicleTax?: number // Fordonsskatt 2026 (kr/år)
   extraEquipment?: number // Extrautrustning (kr)
@@ -75,7 +74,6 @@ export interface CarCalculations {
   annualLeasingCost?: number
   serviceMiles?: number
   insuranceIncludedInLeasing?: boolean
-  maintenanceIncludedInLeasing?: boolean
   registeredAfterJuly2022?: boolean
   vehicleTax?: number
   extraEquipment?: number
@@ -178,7 +176,7 @@ export function calculateBenefitValue(
 /**
  * Calculate TCO (Total Cost of Ownership) for private ownership
  * This represents what it would cost to own the car privately
- * Includes: purchase price, depreciation, insurance, maintenance, fuel, taxes
+ * Includes: purchase price, depreciation, insurance, fuel, taxes
  * 
  * Note: This is different from RAM cost, as RAM excludes fuel (drivmedel)
  * according to C11 policy
@@ -194,9 +192,6 @@ export function calculateTCOPrivate(
   
   // Insurance (estimate 1.5% of purchase price per year)
   const annualInsurance = purchasePrice * 0.015
-  
-  // Maintenance and service (estimate 0.5% of purchase price per year)
-  const annualMaintenance = purchasePrice * 0.005
   
   // Fuel costs - differentiated by car type
   // Note: In RAM system, fuel does NOT belastar ramen (handled via körjournal)
@@ -221,7 +216,7 @@ export function calculateTCOPrivate(
   }
   
   // Total annual cost for private ownership
-  const annualCost = annualDepreciation + annualInsurance + annualMaintenance + annualFuel + annualTax
+  const annualCost = annualDepreciation + annualInsurance + annualFuel + annualTax
   
   // Return annual TCO
   return Math.round(annualCost)
@@ -233,7 +228,6 @@ export function calculateTCOPrivate(
  * 
  * Förmånsbilskostnader som belastar ramen:
  * - Leasing (eller depreciation vid köp)
- * - Underhåll
  * - Tillbehör
  * - Skatt (fordonsskatt)
  * - Försäkring
@@ -253,7 +247,6 @@ export interface RamCostBreakdown {
   isLeasing: boolean
   halfVatLifted: boolean
   insurance: number
-  maintenance: number
   vehicleTax: number
   employerFees: number
   total: number
@@ -271,8 +264,7 @@ export function calculateRamCostBreakdown(
   serviceMiles: number = 0, // Tjänstemil per år
   isElectric: boolean = false,
   isPluginHybrid: boolean = false,
-  insuranceIncludedInLeasing: boolean = false,
-  maintenanceIncludedInLeasing: boolean = false
+  insuranceIncludedInLeasing: boolean = false
 ): RamCostBreakdown {
   // 1. Driftkostnader som belastar ramen (C11). Drivmedel ingår inte – det hanteras via körjournal.
   const leasing = isLeasing && annualLeasingCost > 0
@@ -290,9 +282,8 @@ export function calculateRamCostBreakdown(
     operating = purchasePrice * 0.20
   }
 
-  // Försäkring 1,5 % och underhåll 0,5 % av inköpspriset per år, om de inte ingår i leasingen
+  // Försäkring 1,5 % av inköpspriset per år, om den inte ingår i leasingen
   const insurance = (!isLeasing || !insuranceIncludedInLeasing) ? purchasePrice * 0.015 : 0
-  const maintenance = (!isLeasing || !maintenanceIncludedInLeasing) ? purchasePrice * 0.005 : 0
 
   // Fordonsskatt: elbil 0 kr (första 5 åren), laddhybrid reducerad, annars ca 6 000 kr/år
   const vehicleTax = isElectric ? 0 : isPluginHybrid ? 3000 : 6000
@@ -306,10 +297,9 @@ export function calculateRamCostBreakdown(
     isLeasing: leasing,
     halfVatLifted,
     insurance,
-    maintenance,
     vehicleTax,
     employerFees,
-    total: Math.round(operating + insurance + maintenance + vehicleTax + employerFees),
+    total: Math.round(operating + insurance + vehicleTax + employerFees),
   }
 }
 
@@ -322,8 +312,7 @@ export function calculateTotalCostFromRAM(
   serviceMiles: number = 0,
   isElectric: boolean = false,
   isPluginHybrid: boolean = false,
-  insuranceIncludedInLeasing: boolean = false,
-  maintenanceIncludedInLeasing: boolean = false
+  insuranceIncludedInLeasing: boolean = false
 ): number {
   return calculateRamCostBreakdown(
     purchasePrice,
@@ -334,8 +323,7 @@ export function calculateTotalCostFromRAM(
     serviceMiles,
     isElectric,
     isPluginHybrid,
-    insuranceIncludedInLeasing,
-    maintenanceIncludedInLeasing
+    insuranceIncludedInLeasing
   ).total
 }
 
@@ -350,8 +338,7 @@ export function ramCostBreakdownFor(car: CarInput): RamCostBreakdown {
     car.serviceMiles || 3000,
     car.isElectric || false,
     car.isPluginHybrid || false,
-    car.insuranceIncludedInLeasing || false,
-    car.maintenanceIncludedInLeasing || false
+    car.insuranceIncludedInLeasing || false
   )
 }
 
@@ -440,7 +427,8 @@ export function calculateCarMetrics(car: CarInput, marginalTaxRate: number = MAR
   const isPluginHybrid = car.isPluginHybrid || false
   
   const tcoPrivate = calculateTCOPrivate(car.purchasePrice, annualKm, isElectric, isPluginHybrid)
-  const totalCostFromRAM = ramCostBreakdownFor({ ...car, benefitValue, annualKm }).total  // Beräkna lönemotsvarande baserat på leasingkostnad och förmånsvärde
+  const totalCostFromRAM = ramCostBreakdownFor({ ...car, benefitValue, annualKm }).total
+  // Beräkna lönemotsvarande baserat på leasingkostnad och förmånsvärde
   const annualLeasingForCalc = car.annualLeasingCost || (car.purchasePrice * 0.20) // Fallback till 20% avskrivning
   const salaryEquivalent = calculateSalaryEquivalent(annualLeasingForCalc, benefitValue, marginalTaxRate)
   
@@ -467,7 +455,6 @@ export function calculateCarMetrics(car: CarInput, marginalTaxRate: number = MAR
     annualLeasingCost: car.annualLeasingCost,
     serviceMiles: car.serviceMiles,
     insuranceIncludedInLeasing: car.insuranceIncludedInLeasing,
-    maintenanceIncludedInLeasing: car.maintenanceIncludedInLeasing,
     registeredAfterJuly2022: car.registeredAfterJuly2022,
     vehicleTax: car.vehicleTax,
     extraEquipment: car.extraEquipment,

@@ -153,7 +153,6 @@ export default function CarTable({
       },
     ]
     if (b.insurance > 0) lines.push({ label: 'Försäkring 1,5 % av priset', value: fmtKr(b.insurance) })
-    if (b.maintenance > 0) lines.push({ label: 'Underhåll 0,5 % av priset', value: fmtKr(b.maintenance) })
     lines.push(
       { label: 'Fordonsskatt', value: fmtKr(b.vehicleTax) },
       { label: 'Arbetsgivaravgift 31,42 % på förmånsvärdet', value: fmtKr(b.employerFees) },
@@ -280,8 +279,8 @@ export default function CarTable({
             help={
               <>
                 <p>
-                  Det bilen belastar ramen med: leasing, försäkring, underhåll, fordonsskatt och
-                  arbetsgivaravgifter på förmånsvärdet.
+                  Det bilen belastar ramen med: leasing, försäkring, fordonsskatt och arbetsgivaravgifter
+                  på förmånsvärdet.
                 </p>
                 <p>Drivmedel belastar inte ramen.</p>
               </>

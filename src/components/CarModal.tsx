@@ -68,7 +68,6 @@ export default function CarModal({ car, onClose, onSave }: CarModalProps) {
   const [serviceMiles, setServiceMiles] = useState('500') // 500 mil/år = ingen tjänstekörningsreduktion
   const [residualValue, setResidualValue] = useState('50')
   const [insuranceIncludedInLeasing, setInsuranceIncludedInLeasing] = useState(false)
-  const [maintenanceIncludedInLeasing, setMaintenanceIncludedInLeasing] = useState(false)
   const [autoCalculateBenefit, setAutoCalculateBenefit] = useState(true)
   const [registeredAfterJuly2022, setRegisteredAfterJuly2022] = useState(true)
   const [vehicleTax, setVehicleTax] = useState('')
@@ -186,7 +185,6 @@ export default function CarModal({ car, onClose, onSave }: CarModalProps) {
       setServiceMiles((car.serviceMiles || 500).toString())
       setResidualValue('50')
       setInsuranceIncludedInLeasing(car.insuranceIncludedInLeasing || false)
-      setMaintenanceIncludedInLeasing(car.maintenanceIncludedInLeasing || false)
       setRegisteredAfterJuly2022(car.registeredAfterJuly2022 !== undefined ? car.registeredAfterJuly2022 : true)
       setVehicleTax(car.vehicleTax != null ? car.vehicleTax.toString() : '')
       setExtraEquipment((car.extraEquipment || 0).toString())
@@ -259,7 +257,6 @@ export default function CarModal({ car, onClose, onSave }: CarModalProps) {
       annualLeasingCost: isLeasing && annualLeasingCost ? parseFloat(annualLeasingCost) : undefined,
       serviceMiles: serviceMiles ? parseFloat(serviceMiles) : undefined,
       insuranceIncludedInLeasing: isLeasing ? insuranceIncludedInLeasing : undefined,
-      maintenanceIncludedInLeasing: isLeasing ? maintenanceIncludedInLeasing : undefined,
       registeredAfterJuly2022,
       vehicleTax: vehicleTax ? parseFloat(vehicleTax) : undefined,
       extraEquipment: extraEquipment ? parseFloat(extraEquipment) : undefined,

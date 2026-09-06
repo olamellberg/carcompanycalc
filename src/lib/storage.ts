@@ -19,7 +19,6 @@ export interface CarRow {
   annual_leasing_cost: number | null
   service_miles: number | null
   insurance_included_in_leasing: boolean
-  maintenance_included_in_leasing: boolean
   registered_after_july_2022: boolean
   vehicle_tax: number | null
   extra_equipment: number | null
@@ -46,7 +45,6 @@ export function mapRowToCarInput(row: CarRow): CarInput & { id: string } {
     annualLeasingCost: row.annual_leasing_cost ?? undefined,
     serviceMiles: row.service_miles ?? undefined,
     insuranceIncludedInLeasing: row.insurance_included_in_leasing,
-    maintenanceIncludedInLeasing: row.maintenance_included_in_leasing,
     registeredAfterJuly2022: row.registered_after_july_2022,
     vehicleTax: row.vehicle_tax ?? undefined,
     extraEquipment: row.extra_equipment ?? undefined,
@@ -68,7 +66,6 @@ export function mapCarInputToRowData(carInput: CarInput): Omit<CarRow, 'id' | 'c
     annual_leasing_cost: carInput.annualLeasingCost || null,
     service_miles: carInput.serviceMiles || 500,
     insurance_included_in_leasing: carInput.insuranceIncludedInLeasing || false,
-    maintenance_included_in_leasing: carInput.maintenanceIncludedInLeasing || false,
     registered_after_july_2022: carInput.registeredAfterJuly2022 !== undefined ? carInput.registeredAfterJuly2022 : true,
     vehicle_tax: carInput.vehicleTax ?? null,
     extra_equipment: carInput.extraEquipment || 0,

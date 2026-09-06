@@ -14,7 +14,6 @@ CREATE TABLE IF NOT EXISTS cars (
   annual_leasing_cost NUMERIC,
   service_miles INTEGER DEFAULT 500,        -- Tjänstemil per år (momsregel enligt C11)
   insurance_included_in_leasing BOOLEAN DEFAULT FALSE,
-  maintenance_included_in_leasing BOOLEAN DEFAULT FALSE,
   registered_after_july_2022 BOOLEAN DEFAULT TRUE,
   vehicle_tax NUMERIC,                      -- Fordonsskatt kr/år
   extra_equipment NUMERIC DEFAULT 0,

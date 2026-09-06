@@ -7,7 +7,7 @@ Webbapplikation för att jämföra förmånsbilar enligt svenska skatteregler 20
 ## ✨ Funktioner
 
 - **Förmånsvärde** enligt Skatteverkets regler 2026 (inkl. schablonnedsättning för el- och laddhybridbilar samt nedsättning vid ≥ 3 000 tjänstemil)
-- **RAM-kostnad** – vad bilen belastar ramen med (leasing, försäkring, underhåll, skatt, arbetsgivaravgifter)
+- **RAM-kostnad** – vad bilen belastar ramen med (leasing, försäkring, skatt, arbetsgivaravgifter)
 - **Nettolön istället** – vad pengarna hade gett i netto som lön (löneväxling)
 - **Kostnad per mil** baserat på egen körsträcka och marginalskatt
 - **Bilsökning i tre steg** (år → märke → modell) mot Skatteverkets öppna data
@@ -56,7 +56,7 @@ vilket ger samma resultat som Skatteverkets egen beräkning.
 
 ```
 RAM-kostnad = Leasing (90 % vid ≥ 100 tjänstemil, halva momsen lyfts)
-            + Försäkring 1,5 % + Underhåll 0,5 % + Fordonsskatt
+            + Försäkring 1,5 % + Fordonsskatt
             + 31,42 % arbetsgivaravgift på förmånsvärdet
 Drivmedel belastar inte ramen (C11).
 ```

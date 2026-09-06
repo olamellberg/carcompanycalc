@@ -60,13 +60,14 @@ test('förmånsvärde: pris 0 ger 0', () => {
   assert.equal(calculateBenefitValue(0), 0)
 })
 
-test('RAM-kostnad: leasing med halv moms lyft + försäkring + underhåll + skatt + arbetsgivaravgift', () => {
-  // 120 000 × 0,9 + 7 500 + 2 500 + 6 000 + 100 000 × 0,3142
-  assert.equal(calculateTotalCostFromRAM(500000, 100000, 15000, true, 120000, 3000), 155420)
+test('RAM-kostnad: leasing med halv moms lyft + försäkring + skatt + arbetsgivaravgift', () => {
+  // 120 000 × 0,9 + 7 500 + 6 000 + 100 000 × 0,3142
+  assert.equal(calculateTotalCostFromRAM(500000, 100000, 15000, true, 120000, 3000), 152920)
 })
 
 test('RAM-kostnad: < 100 tjänstemil → ingen moms lyfts', () => {
-  assert.equal(calculateTotalCostFromRAM(500000, 100000, 15000, true, 120000, 50), 167420)
+  // 120 000 + 7 500 + 6 000 + 31 420
+  assert.equal(calculateTotalCostFromRAM(500000, 100000, 15000, true, 120000, 50), 164920)
 })
 
 test('nettolön istället: 50% marginalskatt', () => {
