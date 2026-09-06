@@ -516,7 +516,7 @@ export default function CarModal({ car, onClose, onSave }: CarModalProps) {
         {/* Pris */}
         <fieldset className="min-w-0 space-y-4">
           <legend className="mb-1 font-semibold">Pris</legend>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
             <Field
               label="Nybilspris enligt Skatteverket"
               htmlFor="nybilspris"
@@ -675,7 +675,7 @@ export default function CarModal({ car, onClose, onSave }: CarModalProps) {
               </div>
             </div>
             {autoCalculateBenefit && benefitBreakdown ? (
-              <dl className="mt-3 space-y-0.5 text-xs text-ink-soft">
+              <dl className="mt-3 max-w-md space-y-0.5 text-xs text-ink-soft">
                 {benefitBreakdown.priceReduction > 0 && (
                   <>
                     <BreakdownRow
@@ -729,7 +729,7 @@ export default function CarModal({ car, onClose, onSave }: CarModalProps) {
 
           {isLeasing && (
             <>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3">
                 <Field label="Ränta" htmlFor="interestRate">
                   <TextInput
                     id="interestRate"
@@ -758,30 +758,29 @@ export default function CarModal({ car, onClose, onSave }: CarModalProps) {
                     placeholder="36"
                   />
                 </Field>
-              </div>
-
-              <div>
-                <div className="flex items-baseline justify-between gap-4">
-                  <label htmlFor="residualValue" className="field-label">
-                    Restvärde efter perioden
-                  </label>
-                  <span className="num text-sm">
-                    {residualValue} %{residualKr !== null && ` (${fmtInt(residualKr)} kr)`}
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  id="residualValue"
-                  value={residualValue}
-                  onChange={(e) => setResidualValue(e.target.value)}
-                  min={45}
-                  max={55}
-                  step={1}
-                  className="range block"
-                />
-                <div className="mt-1 flex justify-between text-2xs text-ink-faint">
-                  <span>45 %</span>
-                  <span>55 %</span>
+                <div className="sm:col-span-2 md:col-span-1">
+                  <div className="flex items-baseline justify-between gap-4">
+                    <label htmlFor="residualValue" className="field-label">
+                      Restvärde efter perioden
+                    </label>
+                    <span className="num text-sm">
+                      {residualValue} %{residualKr !== null && ` (${fmtInt(residualKr)} kr)`}
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    id="residualValue"
+                    value={residualValue}
+                    onChange={(e) => setResidualValue(e.target.value)}
+                    min={45}
+                    max={55}
+                    step={1}
+                    className="range block"
+                  />
+                  <div className="mt-1 flex justify-between text-2xs text-ink-faint">
+                    <span>45 %</span>
+                    <span>55 %</span>
+                  </div>
                 </div>
               </div>
 

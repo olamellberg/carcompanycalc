@@ -458,7 +458,7 @@
     display: none;
     flex-direction: column;
     width: calc(100vw - 2rem);
-    max-width: 42rem;
+    max-width: 60rem;
     max-height: calc(100dvh - 2rem);
     padding: 0;
     margin: auto;
@@ -476,7 +476,27 @@
     display: flex;
   }
   .sheet-sm {
-    max-width: 26rem;
+    max-width: 28rem;
+  }
+  @media (min-width: 48rem) {
+    .sheet-head {
+      padding: 1.5rem 1.75rem 1.25rem 2rem;
+    }
+    .sheet-body {
+      padding: 1.5rem 2rem;
+    }
+    .sheet-foot {
+      padding: 1.25rem 2rem;
+    }
+    .sheet-sm .sheet-head {
+      padding: 1.25rem 1.25rem 1rem 1.5rem;
+    }
+    .sheet-sm .sheet-body {
+      padding: 1.25rem 1.5rem;
+    }
+    .sheet-sm .sheet-foot {
+      padding: 1rem 1.5rem;
+    }
   }
   .sheet::backdrop {
     background: rgb(42 42 42 / 0.55);
